@@ -601,6 +601,10 @@ public class ScalarType extends Type {
             return INVALID;
         }
 
+        if (t1.isDecimal() && t2.isDate() || t1.isDate() && t2.isDecimal()) {
+            return INVALID;
+        }
+
         if (t1.isDecimal() || t2.isDecimal()) {
             return DECIMAL;
 //            // The case of decimal and float/double must be handled carefully. There are two
