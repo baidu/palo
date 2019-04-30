@@ -40,6 +40,7 @@ import org.apache.doris.common.util.TimeUtils;
 import org.apache.doris.common.util.Util;
 import org.apache.doris.load.Load;
 import org.apache.doris.load.TxnStateChangeListener;
+import org.apache.doris.metric.MetricRepo;
 import org.apache.doris.persist.EditLog;
 import org.apache.doris.task.AgentTaskQueue;
 import org.apache.doris.task.PublishVersionTask;
@@ -154,7 +155,17 @@ public class GlobalTransactionMgr {
                     coordinator, txnStateChangeListener);
             transactionState.setPrepareTime(System.currentTimeMillis());
             unprotectUpsertTransactionState(transactionState);
+
+            if (MetricRepo.isInit.get()) {
+                MetricRepo.COUNTER_TXN_BEGIN.increase(1L);
+            }
+
             return tid;
+        } catch (Exception e) {
+            if (MetricRepo.isInit.get()) {
+                MetricRepo.COUNTER_TXN_REJECT.increase(1L);
+            }
+            throw e;
         } finally {
             writeUnlock();
         }

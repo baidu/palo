@@ -61,6 +61,8 @@ public final class MetricRepo {
     public static LongCounterMetric COUNTER_EDIT_LOG_SIZE_BYTES;
     public static LongCounterMetric COUNTER_IMAGE_WRITE;
     public static LongCounterMetric COUNTER_IMAGE_PUSH;
+    public static LongCounterMetric COUNTER_TXN_REJECT;
+    public static LongCounterMetric COUNTER_TXN_BEGIN;
     public static LongCounterMetric COUNTER_TXN_FAILED;
     public static LongCounterMetric COUNTER_TXN_SUCCESS;
     public static Histogram HISTO_QUERY_LATENCY;
@@ -202,8 +204,11 @@ public final class MetricRepo {
         COUNTER_IMAGE_PUSH = new LongCounterMetric("image_push",
                 "counter of image succeeded in pushing to other frontends");
         PALO_METRIC_REGISTER.addPaloMetrics(COUNTER_IMAGE_PUSH);
-        COUNTER_TXN_SUCCESS = new LongCounterMetric("txn_success",
-                "counter of success transactions");
+        COUNTER_TXN_REJECT = new LongCounterMetric("txn_reject", "counter of rejected transactions");
+        PALO_METRIC_REGISTER.addPaloMetrics(COUNTER_TXN_REJECT);
+        COUNTER_TXN_BEGIN = new LongCounterMetric("txn_begin", "counter of begining transactions");
+        PALO_METRIC_REGISTER.addPaloMetrics(COUNTER_TXN_BEGIN);
+        COUNTER_TXN_SUCCESS = new LongCounterMetric("txn_success", "counter of success transactions");
         PALO_METRIC_REGISTER.addPaloMetrics(COUNTER_TXN_SUCCESS);
         COUNTER_TXN_FAILED = new LongCounterMetric("txn_failed",
                 "counter of failed transactions");
