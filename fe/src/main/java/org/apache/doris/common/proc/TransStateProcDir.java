@@ -21,46 +21,48 @@ import org.apache.doris.catalog.Catalog;
 import org.apache.doris.common.AnalysisException;
 import org.apache.doris.transaction.GlobalTransactionMgr;
 
+import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableList;
 
-import java.util.ArrayList;
-import java.util.List;
-
 /**
- * author: wuyunfeng
- * date: 18/1/5 10:58
- * project: palo2
+ * author: chenmingyu
+ * date: 19/4/25 10:43
+ * project: doris
  */
-public class TransPartitionProcNode implements ProcNodeInterface {
+public class TransStateProcDir implements ProcDirInterface {
     public static final ImmutableList<String> TITLE_NAMES = new ImmutableList.Builder<String>()
-            .add("PartitionId")
-            .add("CommittedVersion")
-            .add("CommittedVersionHash")
-            .build();
+            .add("State").add("Number").build();
 
-    private long tid;
-    private long tableId;
+    private long dbId;
 
-    public TransPartitionProcNode(long tid, long tableId) {
-        this.tid = tid;
-        this.tableId = tableId;
+    public TransStateProcDir(Long dbId) {
+        this.dbId = dbId;
     }
 
     @Override
     public ProcResult fetchResult() throws AnalysisException {
-        GlobalTransactionMgr transactionMgr = Catalog.getCurrentGlobalTransactionMgr();
-        List<List<Comparable>> partitionInfos = transactionMgr.getPartitionTransInfo(tid, tableId);
-        // set result
         BaseProcResult result = new BaseProcResult();
         result.setNames(TITLE_NAMES);
-        for (List<Comparable> info : partitionInfos) {
-            List<String> row = new ArrayList<String>(info.size());
-            for (Comparable comparable : info) {
-                row.add(comparable.toString());
-            }
-            result.addRow(row);
+        GlobalTransactionMgr transactionMgr = Catalog.getCurrentGlobalTransactionMgr();
+        result.setRows(transactionMgr.getDbTransStateInfo(dbId));
+        return result;
+    }
+
+    @Override
+    public boolean register(String name, ProcNodeInterface node) {
+        return false;
+    }
+
+    @Override
+    public ProcNodeInterface lookup(String state) throws AnalysisException {
+        if (Strings.isNullOrEmpty(state)) {
+            throw new AnalysisException("State is not set");
         }
 
-        return result;
+        if (!state.equals("running") && !state.equals("finished")) {
+            throw new AnalysisException("State is invalid");
+        }
+
+        return new TransProcDir(dbId, state);
     }
 }
