@@ -151,15 +151,20 @@ void MemTable::insert(Tuple* tuple) {
 }
 
 OLAPStatus MemTable::flush(ColumnDataWriter* writer) {
-    Table::Iterator it(_skip_list);
-    for (it.SeekToFirst(); it.Valid(); it.Next()) {
-        const char* row = it.key();
-        _schema->finalize(row);
-        RETURN_NOT_OK(writer->write(row));
-        writer->next(row, _schema);
+    int64_t duration_ns = 0;
+    {
+        SCOPED_RAW_TIMER(&duration_ns);
+        Table::Iterator it(_skip_list);
+        for (it.SeekToFirst(); it.Valid(); it.Next()) {
+            const char* row = it.key();
+            _schema->finalize(row);
+            RETURN_NOT_OK(writer->write(row));
+            writer->next(row, _schema);
+        }
+        RETURN_NOT_OK(writer->finalize());
     }
-
-    RETURN_NOT_OK(writer->finalize());
+    DorisMetrics::memtable_flush_total.increment(1); 
+    DorisMetrics::memtable_flush_duration_us.increment(duration_ns / 1000);
     return OLAP_SUCCESS;
 }
 
