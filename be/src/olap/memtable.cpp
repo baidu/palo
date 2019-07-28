@@ -20,6 +20,7 @@
 #include "olap/hll.h"
 #include "olap/data_writer.h"
 #include "olap/row_cursor.h"
+#include "util/doris_metrics.h"
 #include "util/runtime_profile.h"
 #include "util/debug_util.h"
 
