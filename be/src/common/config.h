@@ -412,10 +412,6 @@ namespace config {
     // and the tablet will be marked as bad, so that FE will try to repair it.
     CONF_Bool(auto_recover_index_loading_failure, "false");
 
-    // This configuration is used to recover compaction under the corner case.
-    // If this configuration is set to true, block will seek position.
-    CONF_Bool(block_seek_position, "false");
-
     // the max client cache number per each host
     // There are variety of client cache in BE, but currently we use the
     // same cache size configuration.
