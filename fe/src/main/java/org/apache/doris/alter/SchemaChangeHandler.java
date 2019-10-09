@@ -56,6 +56,9 @@ import org.apache.doris.common.util.ListComparator;
 import org.apache.doris.common.util.PropertyAnalyzer;
 import org.apache.doris.common.util.Util;
 import org.apache.doris.qe.ConnectContext;
+import org.apache.doris.task.AgentBatchTask;
+import org.apache.doris.task.AgentTaskExecutor;
+import org.apache.doris.task.ClearAlterTask;
 import org.apache.doris.thrift.TResourceInfo;
 import org.apache.doris.thrift.TStorageType;
 
@@ -1279,6 +1282,12 @@ public class SchemaChangeHandler extends AlterHandler {
                     String colocateGroup = properties.get(PropertyAnalyzer.PROPERTIES_COLOCATE_WITH);
                     Catalog.getInstance().modifyTableColocate(db, olapTable, colocateGroup, false, null);
                     return;
+                } else if (properties.containsKey(PropertyAnalyzer.PROPERTIES_SEND_CLEAR_ALTER_TASK)) {
+                    /*
+                     * This is only for fixing bug when upgrading Doris from 0.9.x to 0.10.x.
+                     */
+                    sendClearAlterTask(db, olapTable);
+                    return;
                 }
             }
 
@@ -1306,6 +1315,30 @@ public class SchemaChangeHandler extends AlterHandler {
         } // end for alter clauses
 
         createJob(db.getId(), olapTable, indexSchemaMap, propertyMap);
+    }
+
+    private void sendClearAlterTask(Database db, OlapTable olapTable) {
+        AgentBatchTask batchTask = new AgentBatchTask();
+        db.readLock();
+        try {
+            for (Partition partition : olapTable.getPartitions()) {
+                for (MaterializedIndex index : partition.getMaterializedIndices()) {
+                    int schemaHash = olapTable.getSchemaHashByIndexId(index.getId());
+                    for (Tablet tablet : index.getTablets()) {
+                        for (Replica replica : tablet.getReplicas()) {
+                            ClearAlterTask alterTask = new ClearAlterTask(replica.getBackendId(), db.getId(),
+                                    olapTable.getId(), partition.getId(), index.getId(), tablet.getId(), schemaHash);
+                            batchTask.addTask(alterTask);
+                        }
+                    }
+                }
+            }
+        } finally {
+            db.readUnlock();
+        }
+
+        AgentTaskExecutor.submit(batchTask);
+        LOG.info("send clear alter task for table {}, number: {}", olapTable.getName(), batchTask.getTaskNum());
     }
 
     @Override

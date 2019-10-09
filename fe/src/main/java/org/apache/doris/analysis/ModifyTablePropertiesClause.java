@@ -23,6 +23,7 @@ import org.apache.doris.common.Config;
 import org.apache.doris.common.ErrorCode;
 import org.apache.doris.common.ErrorReport;
 import org.apache.doris.common.util.PrintableMap;
+import org.apache.doris.common.util.PropertyAnalyzer;
 import org.apache.doris.mysql.privilege.PrivPredicate;
 import org.apache.doris.qe.ConnectContext;
 
@@ -71,6 +72,13 @@ public class ModifyTablePropertiesClause extends AlterClause {
             if (!properties.get(KEY_STORAGE_TYPE).equals("column")) {
                 throw new AnalysisException("Can only change storage type to COLUMN");
             }
+        } else if (properties.containsKey(PropertyAnalyzer.PROPERTIES_SEND_CLEAR_ALTER_TASK)) {
+            if (!properties.get(PropertyAnalyzer.PROPERTIES_SEND_CLEAR_ALTER_TASK).equalsIgnoreCase("true")) {
+                throw new AnalysisException(
+                        "Property " + PropertyAnalyzer.PROPERTIES_SEND_CLEAR_ALTER_TASK + " should be set to true");
+            }
+        } else {
+            throw new AnalysisException("Unknown table property: " + properties.keySet());
         }
     }
 

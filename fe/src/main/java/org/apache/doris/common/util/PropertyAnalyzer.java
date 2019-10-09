@@ -68,6 +68,11 @@ public class PropertyAnalyzer {
 
     public static final String PROPERTIES_COLOCATE_WITH = "colocate_with";
     
+    public static final String PROPERTIES_TIMEOUT = "timeout";
+
+    public static final String PROPERTIES_DISTRIBUTION_TYPE = "distribution_type";
+    public static final String PROPERTIES_SEND_CLEAR_ALTER_TASK = "send_clear_alter_tasks";
+
     public static DataProperty analyzeDataProperty(Map<String, String> properties, DataProperty oldDataProperty)
             throws AnalysisException {
         DataProperty dataProperty = oldDataProperty;
