@@ -197,7 +197,9 @@ public class OlapTableSink extends DataSink {
             }
             case RANDOM: {
                 for (Column column : table.getBaseSchema()) {
-                    distColumns.add(column.getName());
+                    if (column.isKey()) {
+                        distColumns.add(column.getName());
+                    }
                 }
                 break;
             }
