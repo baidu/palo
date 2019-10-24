@@ -4004,7 +4004,7 @@ public class Catalog {
         Preconditions.checkArgument(replicationNum > 0);
 
         DistributionInfoType distributionInfoType = distributionInfo.getType();
-        if (distributionInfoType == DistributionInfoType.HASH) {
+        if (distributionInfoType == DistributionInfoType.HASH || distributionInfoType == DistributionInfoType.RANDOM) {
             ColocateTableIndex colocateIndex = Catalog.getCurrentColocateIndex();
             List<List<Long>> backendsPerBucketSeq = null;
             GroupId groupId = null;
