@@ -74,7 +74,7 @@ public class LoadLoadingTask extends LoadTask {
         this.strictMode = strictMode;
         this.txnId = txnId;
         this.failMsg = new FailMsg(FailMsg.CancelType.LOAD_RUN_FAIL);
-        this.retryTime = 2; // 2 times is enough
+        this.retryTime = 1;
     }
 
     public void init(TUniqueId loadId, List<List<TBrokerFileStatus>> fileStatusList, int fileNum) throws UserException {
