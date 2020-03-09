@@ -23,6 +23,7 @@ import org.apache.doris.analysis.FloatLiteral;
 import org.apache.doris.analysis.IntLiteral;
 import org.apache.doris.analysis.LargeIntLiteral;
 import org.apache.doris.analysis.LiteralExpr;
+import org.apache.doris.analysis.NullLiteral;
 import org.apache.doris.analysis.StringLiteral;
 import org.apache.doris.catalog.Type;
 import org.apache.doris.common.AnalysisException;
@@ -346,6 +347,9 @@ public class FEFunctions {
 
     @FEFunction(name = "divide", argTypes = { "DOUBLE", "DOUBLE" }, returnType = "DOUBLE")
     public static FloatLiteral divideDouble(LiteralExpr first, LiteralExpr second) throws AnalysisException {
+        if (second.getDoubleValue() == 0.0) {	
+            return null;	
+        }
         double result = first.getDoubleValue() / second.getDoubleValue();
         return new FloatLiteral(result, Type.DOUBLE);
     }
@@ -354,6 +358,9 @@ public class FEFunctions {
     public static DecimalLiteral divideDecimal(LiteralExpr first, LiteralExpr second) throws AnalysisException {
         BigDecimal left = new BigDecimal(first.getStringValue());
         BigDecimal right = new BigDecimal(second.getStringValue());
+        if (right.compareTo(BigDecimal.ZERO) == 0) {	
+            return null;	
+        }
         BigDecimal result = left.divide(right);
         return new DecimalLiteral(result);
     }
@@ -362,7 +369,9 @@ public class FEFunctions {
     public static DecimalLiteral divideDecimalV2(LiteralExpr first, LiteralExpr second) throws AnalysisException {
         BigDecimal left = new BigDecimal(first.getStringValue());
         BigDecimal right = new BigDecimal(second.getStringValue());
-
+        if (right.compareTo(BigDecimal.ZERO) == 0) {	
+            return null;	
+        }
         BigDecimal result = left.divide(right);
         return new DecimalLiteral(result);
     }
@@ -387,4 +396,40 @@ public class FEFunctions {
         resultBuilder.append(values[values.length - 1].getStringValue());
         return new StringLiteral(resultBuilder.toString());
     }
+
+    @FEFunction(name = "ifnull", argTypes = {"VARCHAR", "VARCHAR"}, returnType = "VARCHAR")
+    public static LiteralExpr ifNullString(LiteralExpr first, LiteralExpr second) throws AnalysisException {
+        return first instanceof NullLiteral ? second : first;
+    }
+
+    @FEFunction(name = "ifnull", argTypes = {"TINYINT", "TINYINT"}, returnType = "TINYINT")
+    public static LiteralExpr ifNullTinyInt(LiteralExpr first, LiteralExpr second) throws AnalysisException {
+        return first instanceof NullLiteral ? second : first;
+    }
+
+    @FEFunction(name = "ifnull", argTypes = {"INT", "INT"}, returnType = "INT")
+    public static LiteralExpr ifNullInt(LiteralExpr first, LiteralExpr second) throws AnalysisException {
+        return first instanceof NullLiteral ? second : first;
+    }
+
+    @FEFunction(name = "ifnull", argTypes = {"BIGINT", "BIGINT"}, returnType = "BIGINT")
+    public static LiteralExpr ifNullBigInt(LiteralExpr first, LiteralExpr second) throws AnalysisException {
+        return first instanceof NullLiteral ? second : first;
+    }
+
+    @FEFunction(name = "ifnull", argTypes = { "DATETIME", "DATETIME" }, returnType = "DATETIME")
+    public static LiteralExpr ifNullDateTime(LiteralExpr first, LiteralExpr second) throws AnalysisException {
+        return first instanceof NullLiteral ? second : first;
+    }
+
+    @FEFunction(name = "ifnull", argTypes = { "DATE", "DATETIME" }, returnType = "DATETIME")
+    public static LiteralExpr ifNullDateDatetime(LiteralExpr first, LiteralExpr second) throws AnalysisException {
+        return first instanceof NullLiteral ? second : first;
+    }
+
+    @FEFunction(name = "ifnull", argTypes = { "DATETIME", "DATE" }, returnType = "DATETIME")
+    public static LiteralExpr ifNullDatetimeDate(LiteralExpr first, LiteralExpr second) throws AnalysisException {
+        return first instanceof NullLiteral ? second : first;
+    }
+
 }
