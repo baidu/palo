@@ -190,6 +190,7 @@ import org.apache.doris.common.util.SqlUtils;
         keywordMap.put("isolation", new Integer(SqlParserSymbols.KW_ISOLATION));
         keywordMap.put("join", new Integer(SqlParserSymbols.KW_JOIN));
         keywordMap.put("key", new Integer(SqlParserSymbols.KW_KEY));
+        keywordMap.put("keys", new Integer(SqlParserSymbols.KW_KEYS));
         keywordMap.put("kill", new Integer(SqlParserSymbols.KW_KILL));
         keywordMap.put("label", new Integer(SqlParserSymbols.KW_LABEL));
         keywordMap.put("largeint", new Integer(SqlParserSymbols.KW_LARGEINT));
