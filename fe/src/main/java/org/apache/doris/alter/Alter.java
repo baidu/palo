@@ -84,7 +84,7 @@ public class Alter {
         String tableName = stmt.getBaseIndexName();
         // check db
         String dbName = stmt.getDBName();
-        Database db = Catalog.getInstance().getDb(dbName);
+        Database db = Catalog.getCurrentCatalog().getDb(dbName);
         if (db == null) {
             ErrorReport.reportDdlException(ErrorCode.ERR_BAD_DB_ERROR, dbName);
         }
@@ -111,7 +111,7 @@ public class Alter {
     public void processDropMaterializedView(DropMaterializedViewStmt stmt) throws DdlException, MetaNotFoundException {
         // check db
         String dbName = stmt.getTableName().getDb();
-        Database db = Catalog.getInstance().getDb(dbName);
+        Database db = Catalog.getCurrentCatalog().getDb(dbName);
         if (db == null) {
             ErrorReport.reportDdlException(ErrorCode.ERR_BAD_DB_ERROR, dbName);
         }
@@ -148,7 +148,7 @@ public class Alter {
         String dbName = dbTableName.getDb();
         final String clusterName = stmt.getClusterName();
 
-        Database db = Catalog.getInstance().getDb(dbName);
+        Database db = Catalog.getCurrentCatalog().getDb(dbName);
         if (db == null) {
             ErrorReport.reportDdlException(ErrorCode.ERR_BAD_DB_ERROR, dbName);
         }
@@ -196,7 +196,7 @@ public class Alter {
                     if (!((DropPartitionClause) alterClause).isTempPartition()) {
                         DynamicPartitionUtil.checkAlterAllowed((OlapTable) db.getTable(tableName));
                     }
-                    Catalog.getInstance().dropPartition(db, olapTable, ((DropPartitionClause) alterClause));
+                    Catalog.getCurrentCatalog().dropPartition(db, olapTable, ((DropPartitionClause) alterClause));
                 } else if (alterClause instanceof ReplacePartitionClause) {
                     Catalog.getCurrentCatalog().replaceTempPartition(db, tableName, (ReplacePartitionClause) alterClause);
                 } else if (alterClause instanceof ModifyPartitionClause) {
@@ -206,7 +206,7 @@ public class Alter {
                         needProcessOutsideDatabaseLock = true;
                     } else {
                         String partitionName = clause.getPartitionName();
-                        Catalog.getInstance().modifyPartitionProperty(db, olapTable, partitionName, properties);
+                        Catalog.getCurrentCatalog().modifyPartitionProperty(db, olapTable, partitionName, properties);
                     }
                 } else if (alterClause instanceof AddPartitionClause) {
                     needProcessOutsideDatabaseLock = true;
@@ -265,7 +265,7 @@ public class Alter {
         TableName dbTableName = stmt.getTbl();
         String dbName = dbTableName.getDb();
 
-        Database db = Catalog.getInstance().getDb(dbName);
+        Database db = Catalog.getCurrentCatalog().getDb(dbName);
         if (db == null) {
             ErrorReport.reportDdlException(ErrorCode.ERR_BAD_DB_ERROR, dbName);
         }
@@ -304,7 +304,7 @@ public class Alter {
         db.createTable(view);
 
         AlterViewInfo alterViewInfo = new AlterViewInfo(db.getId(), view.getId(), inlineViewDef, newFullSchema, sqlMode);
-        Catalog.getInstance().getEditLog().logModifyViewDef(alterViewInfo);
+        Catalog.getCurrentCatalog().getEditLog().logModifyViewDef(alterViewInfo);
         LOG.info("modify view[{}] definition to {}", viewName, inlineViewDef);
     }
 
@@ -343,16 +343,16 @@ public class Alter {
     private void processRename(Database db, OlapTable table, List<AlterClause> alterClauses) throws DdlException {
         for (AlterClause alterClause : alterClauses) {
             if (alterClause instanceof TableRenameClause) {
-                Catalog.getInstance().renameTable(db, table, (TableRenameClause) alterClause);
+                Catalog.getCurrentCatalog().renameTable(db, table, (TableRenameClause) alterClause);
                 break;
             } else if (alterClause instanceof RollupRenameClause) {
-                Catalog.getInstance().renameRollup(db, table, (RollupRenameClause) alterClause);
+                Catalog.getCurrentCatalog().renameRollup(db, table, (RollupRenameClause) alterClause);
                 break;
             } else if (alterClause instanceof PartitionRenameClause) {
-                Catalog.getInstance().renamePartition(db, table, (PartitionRenameClause) alterClause);
+                Catalog.getCurrentCatalog().renamePartition(db, table, (PartitionRenameClause) alterClause);
                 break;
             } else if (alterClause instanceof ColumnRenameClause) {
-                Catalog.getInstance().renameColumn(db, table, (ColumnRenameClause) alterClause);
+                Catalog.getCurrentCatalog().renameColumn(db, table, (ColumnRenameClause) alterClause);
                 break;
             } else {
                 Preconditions.checkState(false);
