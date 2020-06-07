@@ -693,7 +693,6 @@ bool operator==(const TabletMeta& a, const TabletMeta& b) {
     if (a._creation_time != b._creation_time) return false;
     if (a._cumulative_layer_point != b._cumulative_layer_point) return false;
     if (a._tablet_uid != b._tablet_uid) return false;
-    if (a._tablet_type != b._tablet_type) return false;
     if (a._tablet_state != b._tablet_state) return false;
     if (a._schema != b._schema) return false;
     if (a._rs_metas.size() != b._rs_metas.size()) return false;
