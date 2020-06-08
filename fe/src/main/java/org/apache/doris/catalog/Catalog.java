@@ -540,16 +540,13 @@ public class Catalog {
         }
     }
 
-    // use this to get CheckPoint Catalog instance
-    public static Catalog getCheckpoint() {
-        if (CHECKPOINT == null) {
-            CHECKPOINT = new Catalog();
-        }
-        return CHECKPOINT;
-    }
-
     public static Catalog getCurrentCatalog() {
         if (isCheckpointThread()) {
+            // only checkpoint thread it self will goes here.
+            // so no need to care about the thread safe.
+            if (CHECKPOINT == null) {
+                CHECKPOINT = new Catalog();
+            }
             return CHECKPOINT;
         } else {
             return SingletonHolder.INSTANCE;
@@ -1203,8 +1200,11 @@ public class Catalog {
         // start checkpoint thread
         checkpointer = new Checkpoint(editLog);
         checkpointer.setMetaContext(metaContext);
-        checkpointer.start();
+        // set "checkpointThreadId" before the checkpoint thread start, because the thread
+        // need to check the "checkpointThreadId" when running.
         checkpointThreadId = checkpointer.getId();
+
+        checkpointer.start();
         LOG.info("checkpointer thread started. thread id is {}", checkpointThreadId);
 
         // heartbeat mgr
