@@ -128,10 +128,6 @@ public class RollupJobV2Test {
 
         new MockUp<Catalog>() {
             @Mock
-            public Catalog getInstance() {
-                return masterCatalog;
-            }
-            @Mock
             public Catalog getCurrentCatalog() {
                 return masterCatalog;
             }
