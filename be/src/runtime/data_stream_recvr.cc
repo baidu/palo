@@ -427,7 +427,7 @@ void DataStreamRecvr::close() {
     _mgr = NULL;
     _merger.reset();
     _mem_tracker->close();
-    _mem_tracker->unregister_from_parent();
+    // _mem_tracker->unregister_from_parent();
     _mem_tracker.reset();
 }
 

@@ -109,7 +109,7 @@ public class Config extends ConfigBase {
     @ConfField public static String plugin_dir = System.getenv("DORIS_HOME") + "/plugins";
 
     @ConfField(mutable = true, masterOnly = true)
-    public static boolean plugin_enable = false;
+    public static boolean plugin_enable = true;
 
     /*
      * Labels of finished or cancelled load jobs will be removed after *label_keep_max_second*
@@ -1044,7 +1044,7 @@ public class Config extends ConfigBase {
      * If set to true, dynamic partition feature will open
      */
     @ConfField(mutable = true, masterOnly = true)
-    public static boolean dynamic_partition_enable = false;
+    public static boolean dynamic_partition_enable = true;
 
     /*
      * control rollup job concurrent limit
