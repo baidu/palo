@@ -308,7 +308,7 @@ public class Config extends ConfigBase {
     /*
     * mysql service nio option.
      */
-    @ConfField public static boolean mysql_service_nio_enabled = false;
+    @ConfField public static boolean mysql_service_nio_enabled = true;
 
     /*
      * num of thread to handle io events in mysql.
