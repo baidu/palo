@@ -2770,6 +2770,8 @@ public class Catalog {
 
             fullNameToDb.put(db.getFullName(), db);
             idToDb.put(db.getId(), db);
+            final Cluster cluster = nameToCluster.get(db.getClusterName());
+            cluster.addDb(db.getFullName(), db.getId());
 
             // log
             RecoverInfo recoverInfo = new RecoverInfo(db.getId(), -1L, -1L);
