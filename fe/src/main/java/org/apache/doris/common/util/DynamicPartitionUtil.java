@@ -162,7 +162,7 @@ public class DynamicPartitionUtil {
                 properties.containsKey(DynamicPartitionProperty.START_DAY_OF_MONTH);
     }
 
-    private static boolean checkInputDynamicPartitionProperties(Map<String, String> properties, PartitionInfo partitionInfo) throws DdlException{
+    public static boolean checkInputDynamicPartitionProperties(Map<String, String> properties, PartitionInfo partitionInfo) throws DdlException{
         if (properties == null || properties.isEmpty()) {
             return false;
         }
@@ -276,7 +276,8 @@ public class DynamicPartitionUtil {
         if (tableProperty != null && tableProperty.getDynamicPartitionProperty() != null &&
                 tableProperty.getDynamicPartitionProperty().isExist() &&
                 tableProperty.getDynamicPartitionProperty().getEnable()) {
-            throw new DdlException("Cannot add/drop partition on a Dynamic Partition Table, set `dynamic_partition.enable` to false firstly.");
+            throw new DdlException("Cannot add/drop partition on a Dynamic Partition Table, " +
+                    "Use command `ALTER TABLE tbl_name SET (\"dynamic_partition.enable\" = \"false\")` firstly.");
         }
     }
 
