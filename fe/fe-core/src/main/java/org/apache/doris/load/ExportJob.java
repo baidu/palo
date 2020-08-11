@@ -160,7 +160,7 @@ public class ExportJob implements Writable {
         this.finishTimeMs = -1;
         this.failMsg = new ExportFailMsg(ExportFailMsg.CancelType.UNKNOWN, "");
         this.analyzer = new Analyzer(Catalog.getCurrentCatalog(), null);
-        this.desc = new DescriptorTable();
+        this.desc = analyzer.getDescTbl();
         this.exportPath = "";
         this.columnSeparator = "\t";
         this.lineDelimiter = "\n";
@@ -233,7 +233,7 @@ public class ExportJob implements Writable {
             slot.setColumn(col);
             slot.setIsNullable(col.isAllowNull());
         }
-        desc.computeMemLayout();
+        desc.computeStatAndMemLayout();
     }
 
     private void plan() throws UserException {
@@ -283,7 +283,6 @@ public class ExportJob implements Writable {
                 ((OlapScanNode) scanNode).setColumnFilters(Maps.newHashMap());
                 ((OlapScanNode) scanNode).setIsPreAggregation(false, "This an export operation");
                 ((OlapScanNode) scanNode).setCanTurnOnPreAggr(false);
-                scanNode.init(analyzer);
                 ((OlapScanNode) scanNode).selectBestRollupByRollupSelector(analyzer);
                 break;
             case ODBC:
@@ -296,6 +295,7 @@ public class ExportJob implements Writable {
                 break;
         }
         if (scanNode != null) {
+            scanNode.init(analyzer);
             scanNode.finalize(analyzer);
         }
 

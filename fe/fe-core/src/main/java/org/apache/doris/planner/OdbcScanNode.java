@@ -92,6 +92,12 @@ public class OdbcScanNode extends ScanNode {
     }
 
     @Override
+    public void init(Analyzer analyzer) throws UserException {
+        super.init(analyzer);
+        computeStats(analyzer);
+    }
+
+    @Override
     protected String debugString() {
         MoreObjects.ToStringHelper helper = MoreObjects.toStringHelper(this);
         return helper.addValue(super.debugString()).toString();
@@ -102,7 +108,6 @@ public class OdbcScanNode extends ScanNode {
         // Convert predicates to Odbc columns and filters.
         createOdbcColumns(analyzer);
         createOdbcFilters(analyzer);
-        computeStats(analyzer);
     }
 
     @Override

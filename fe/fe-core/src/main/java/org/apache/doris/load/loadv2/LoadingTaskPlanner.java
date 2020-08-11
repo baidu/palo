@@ -125,7 +125,7 @@ public class LoadingTaskPlanner {
         scanNode.init(analyzer);
         scanNode.finalize(analyzer);
         scanNodes.add(scanNode);
-        descTable.computeMemLayout();
+        descTable.computeStatAndMemLayout();
 
         // 2. Olap table sink
         List<Long> partitionIds = getAllPartitionIds();

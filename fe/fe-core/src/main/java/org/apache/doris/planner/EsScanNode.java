@@ -83,6 +83,7 @@ public class EsScanNode extends ScanNode {
         super.init(analyzer);
 
         assignBackends();
+        computeStats(analyzer);
     }
 
     @Override

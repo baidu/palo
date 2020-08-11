@@ -124,15 +124,15 @@ public class SortNode extends PlanNode {
     @Override
     protected void computeStats(Analyzer analyzer) {
         super.computeStats(analyzer);
-        cardinality = getChild(0).cardinality;
-        if (hasLimit()) {
-            if (cardinality == -1) {
-                cardinality = limit;
-            } else {
-                cardinality = Math.min(cardinality, limit);
-            }
+        if (!analyzer.safeIsEnableJoinReorderBasedCost()) {
+            return;
         }
-        LOG.debug("stats Sort: cardinality=" + Long.toString(cardinality));
+        cardinality = getChild(0).cardinality;
+        applyConjunctsSelectivity();
+        capCardinalityAtLimit();
+        if (LOG.isDebugEnabled()) {
+            LOG.debug("stats Sort: cardinality=" + cardinality);
+        }
     }
 
     @Override

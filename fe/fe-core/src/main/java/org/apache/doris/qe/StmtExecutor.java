@@ -342,7 +342,7 @@ public class StmtExecutor {
             throw e;
         } catch (UserException e) {
             // analysis exception only print message, not print the stack
-            LOG.warn("execute Exception. {}", e.getMessage());
+            LOG.warn("execute Exception. {}", e);
             context.getState().setError(e.getMessage());
             context.getState().setErrType(QueryState.ErrType.ANALYSIS_ERR);
         } catch (Exception e) {

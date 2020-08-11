@@ -195,7 +195,7 @@ public class Analyzer {
         private final Map<TupleId, List<ExprId>> eqJoinConjuncts = Maps.newHashMap();
 
         // set of conjuncts that have been assigned to some PlanNode
-        private final Set<ExprId> assignedConjuncts =
+        private Set<ExprId> assignedConjuncts =
             Collections.newSetFromMap(new IdentityHashMap<ExprId, Boolean>());
 
         // map from outer-joined tuple id, ie, one that is nullable in this select block,
@@ -934,6 +934,16 @@ public class Analyzer {
         registerConjunct(p);
     }
 
+    public Set<ExprId> getAssignedConjuncts() {
+        return Sets.newHashSet(globalState.assignedConjuncts);
+    }
+
+    public void setAssignedConjuncts(Set<ExprId> assigned) {
+        if (assigned != null) {
+            globalState.assignedConjuncts = Sets.newHashSet(assigned);
+        }
+    }
+
     /**
      * Return all unassigned registered conjuncts that are fully bound by the given
      * (logical) tuple ids, can be evaluated by 'tupleIds' and are not tied to an
@@ -1579,11 +1589,22 @@ public class Analyzer {
         this.changeResSmap = changeResSmap;
     }
 
+
     public boolean safeIsEnableFoldConstantByBe() {
         if (globalState.context == null) {
             return false;
         }
         return globalState.context.getSessionVariable().isEnableFoldConstantByBe();
+    }
+
+    // Load plan and query plan are the same framework
+    // Some Load method in doris access through http protocol, which will cause the session may be empty.
+    // In order to avoid the occurrence of null pointer exceptions, a check will be added here
+    public boolean safeIsEnableJoinReorderBasedCost() {
+        if (globalState.context == null) {
+            return false;
+        }
+        return globalState.context.getSessionVariable().isEnableJoinReorderBasedCost();
     }
 
     /**

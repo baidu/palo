@@ -173,7 +173,7 @@ public abstract class LoadScanNode extends ScanNode {
         // LOG.info("brokerScanRange is {}", brokerScanRange);
 
         // Need re compute memory layout after set some slot descriptor to nullable
-        srcTupleDesc.computeMemLayout();
+        srcTupleDesc.computeStatAndMemLayout();
     }
 
     @Override

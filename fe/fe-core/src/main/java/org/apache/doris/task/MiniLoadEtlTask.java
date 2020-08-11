@@ -36,6 +36,7 @@ import org.apache.logging.log4j.LogManager;
 
 import java.util.Map;
 
+@Deprecated
 public class MiniLoadEtlTask extends LoadEtlTask {
     private static final Logger LOG = LogManager.getLogger(MiniLoadEtlTask.class);
 

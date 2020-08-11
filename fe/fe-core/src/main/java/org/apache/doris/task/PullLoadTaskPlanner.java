@@ -107,7 +107,7 @@ public class PullLoadTaskPlanner {
                 new PlanNodeId(nextNodeId++), scanNode, table, tupleDesc, slotRefs);
         rewriteNode.init(analyzer);
 
-        descTable.computeMemLayout();
+        descTable.computeStatAndMemLayout();
         rewriteNode.finalize(analyzer);
 
         PlanFragment scanFragment = new PlanFragment(new PlanFragmentId(0), rewriteNode, DataPartition.RANDOM);

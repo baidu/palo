@@ -1331,6 +1331,8 @@ public class QueryPlanTest {
         Assert.assertTrue(explainString.contains("AGGREGATE (update finalize)"));
     }
 
+
+    @Test
     public void testLeadAndLagFunction() throws Exception {
         connectContext.setDatabase("default_cluster:test");
 
@@ -1381,6 +1383,7 @@ public class QueryPlanTest {
         explainString = UtFrameUtils.getSQLPlanOrErrorMsg(connectContext, "EXPLAIN " + sql);
         Assert.assertTrue(explainString.contains("PREDICATES: `date` IN ('2020-10-30 00:00:00')"));
     }
+    
 }
 
 

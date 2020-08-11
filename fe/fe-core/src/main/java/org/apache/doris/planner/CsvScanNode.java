@@ -48,6 +48,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
+@Deprecated
 public class CsvScanNode extends ScanNode {
     private static final Logger LOG = LogManager.getLogger(CsvScanNode.class);
 

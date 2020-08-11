@@ -61,6 +61,7 @@ import org.apache.logging.log4j.Logger;
 import java.util.List;
 import java.util.Map;
 
+@Deprecated
 public class MiniLoadPendingTask extends LoadPendingTask {
     private static final Logger LOG = LogManager.getLogger(MiniLoadPendingTask.class);
 
@@ -159,9 +160,10 @@ public class MiniLoadPendingTask extends LoadPendingTask {
         }
     }
 
+    @Deprecated
     private TMiniLoadEtlTaskRequest createRequest(long taskId) throws LoadException {
         ScanNode csvScanNode = new CsvScanNode(new PlanNodeId(0), destTupleDesc, destTable, job);
-        desc.computeMemLayout();
+        desc.computeStatAndMemLayout();
         try {
             csvScanNode.finalize(null);
         } catch (UserException e) {

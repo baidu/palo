@@ -673,8 +673,7 @@ public class AnalyticPlanner {
                 logicalToPhysicalSmap.put(new SlotRef(logicalOutputSlot), new SlotRef(physicalOutputSlot));
             }
 
-            physicalOutputTuple.computeMemLayout();
-            //      if (requiresIntermediateTuple) physicalIntermediateTuple.computeMemLayout();
+            physicalOutputTuple.computeStatAndMemLayout();
         }
     }
 

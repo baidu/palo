@@ -26,7 +26,12 @@ import org.apache.doris.analysis.SlotDescriptor;
 import org.apache.doris.analysis.SlotId;
 import org.apache.doris.analysis.SlotRef;
 import org.apache.doris.analysis.TableRef;
+import org.apache.doris.analysis.TupleId;
 import org.apache.doris.catalog.ColumnStats;
+import org.apache.doris.catalog.OlapTable;
+import org.apache.doris.catalog.Table;
+import org.apache.doris.common.CheckedMath;
+import org.apache.doris.common.Pair;
 import org.apache.doris.common.UserException;
 import org.apache.doris.thrift.TEqJoinCondition;
 import org.apache.doris.thrift.TExplainLevel;
@@ -41,7 +46,10 @@ import com.google.common.collect.Lists;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -134,11 +142,8 @@ public class HashJoinNode extends PlanNode {
 
     @Override
     public void init(Analyzer analyzer) throws UserException {
-        assignConjuncts(analyzer);
-
-        // Set smap to the combined children's smaps and apply that to all conjuncts_.
-        createDefaultSmap(analyzer);
-
+        super.init(analyzer);
+        assignedConjuncts = analyzer.getAssignedConjuncts();
         computeStats(analyzer);
         //assignedConjuncts = analyzr.getAssignedConjuncts();
 
@@ -147,80 +152,280 @@ public class HashJoinNode extends PlanNode {
                 Expr.substituteList(eqJoinConjuncts, combinedChildSmap, analyzer, false);
         eqJoinConjuncts = newEqJoinConjuncts.stream()
                 .map(entity -> (BinaryPredicate) entity).collect(Collectors.toList());
+        assignedConjuncts = analyzer.getAssignedConjuncts();
         otherJoinConjuncts =
                 Expr.substituteList(otherJoinConjuncts, combinedChildSmap, analyzer, false);
+    }
+
+    /**
+     * Holds the source scan slots of a <SlotRef> = <SlotRef> join predicate.
+     * The underlying table and column on both sides have stats.
+     */
+    public static final class EqJoinConjunctScanSlots {
+        private final Expr eqJoinConjunct;
+        private final SlotDescriptor lhs;
+        private final SlotDescriptor rhs;
+
+        private EqJoinConjunctScanSlots(Expr eqJoinConjunct, SlotDescriptor lhs,
+                                        SlotDescriptor rhs) {
+            this.eqJoinConjunct = eqJoinConjunct;
+            this.lhs = lhs;
+            this.rhs = rhs;
+        }
+
+        // Convenience functions. They return double to avoid excessive casts in callers.
+        public double lhsNdv() {
+            // return the estimated number of rows in this partition (-1 if unknown)
+            return Math.min(lhs.getStats().getNumDistinctValues(), lhsNumRows());
+        }
+        public double rhsNdv() {
+            return Math.min(rhs.getStats().getNumDistinctValues(), rhsNumRows());
+        }
+        public double lhsNumRows() {
+            Table table = lhs.getParent().getTable();
+            Preconditions.checkState(table instanceof OlapTable);
+            return ((OlapTable) (table)).getRowCount();
+        }
+        public double rhsNumRows() {
+            Table table = rhs.getParent().getTable();
+            Preconditions.checkState(table instanceof OlapTable);
+            return ((OlapTable) (table)).getRowCount();
+        }
+
+        public TupleId lhsTid() { return lhs.getParent().getId(); }
+        public TupleId rhsTid() { return rhs.getParent().getId(); }
+
+        /**
+         * Returns a new EqJoinConjunctScanSlots for the given equi-join conjunct or null if
+         * the given conjunct is not of the form <SlotRef> = <SlotRef> or if the underlying
+         * table/column of at least one side is missing stats.
+         */
+        public static EqJoinConjunctScanSlots create(Expr eqJoinConjunct) {
+            if (!Expr.IS_EQ_BINARY_PREDICATE.apply(eqJoinConjunct)) return null;
+            SlotDescriptor lhsScanSlot = eqJoinConjunct.getChild(0).findSrcScanSlot();
+            if (lhsScanSlot == null || !hasNumRowsAndNdvStats(lhsScanSlot)) return null;
+            SlotDescriptor rhsScanSlot = eqJoinConjunct.getChild(1).findSrcScanSlot();
+            if (rhsScanSlot == null || !hasNumRowsAndNdvStats(rhsScanSlot)) return null;
+            return new EqJoinConjunctScanSlots(eqJoinConjunct, lhsScanSlot, rhsScanSlot);
+        }
+
+        private static boolean hasNumRowsAndNdvStats(SlotDescriptor slotDesc) {
+            if (slotDesc.getColumn() == null) return false;
+            if (!slotDesc.getStats().hasNumDistinctValues()) return false;
+            return true;
+        }
+
+        /**
+         * Groups the given EqJoinConjunctScanSlots by the lhs/rhs tuple combination
+         * and returns the result as a map.
+         */
+        public static Map<Pair<TupleId, TupleId>, List<EqJoinConjunctScanSlots>>
+        groupByJoinedTupleIds(List<EqJoinConjunctScanSlots> eqJoinConjunctSlots) {
+            Map<Pair<TupleId, TupleId>, List<EqJoinConjunctScanSlots>> scanSlotsByJoinedTids =
+                    new LinkedHashMap<>();
+            for (EqJoinConjunctScanSlots slots: eqJoinConjunctSlots) {
+                Pair<TupleId, TupleId> tids = Pair.create(slots.lhsTid(), slots.rhsTid());
+                List<EqJoinConjunctScanSlots> scanSlots = scanSlotsByJoinedTids.get(tids);
+                if (scanSlots == null) {
+                    scanSlots = new ArrayList<>();
+                    scanSlotsByJoinedTids.put(tids, scanSlots);
+                }
+                scanSlots.add(slots);
+            }
+            return scanSlotsByJoinedTids;
+        }
+
+        @Override
+        public String toString() { return eqJoinConjunct.toSql(); }
+    }
+
+    private long getJoinCardinality() {
+        Preconditions.checkState(joinOp.isInnerJoin() || joinOp.isOuterJoin());
+
+        long lhsCard = getChild(0).cardinality;
+        long rhsCard = getChild(1).cardinality;
+        if (lhsCard == -1 || rhsCard == -1) {
+            return lhsCard;
+        }
+
+        // Collect join conjuncts that are eligible to participate in cardinality estimation.
+        List<EqJoinConjunctScanSlots> eqJoinConjunctSlots = new ArrayList<>();
+        for (Expr eqJoinConjunct: eqJoinConjuncts) {
+            EqJoinConjunctScanSlots slots = EqJoinConjunctScanSlots.create(eqJoinConjunct);
+            if (slots != null) eqJoinConjunctSlots.add(slots);
+        }
+
+        if (eqJoinConjunctSlots.isEmpty()) {
+            // There are no eligible equi-join conjuncts.
+            return lhsCard;
+        }
+
+        return getGenericJoinCardinality(eqJoinConjunctSlots, lhsCard, rhsCard);
+    }
+
+    /**
+     * Returns the estimated join cardinality of a generic N:M inner or outer join based
+     * on the given list of equi-join conjunct slots and the join input cardinalities.
+     * The returned result is >= 0.
+     * The list of join conjuncts must be non-empty and the cardinalities must be >= 0.
+     *
+     * Generic estimation:
+            * cardinality = |child(0)| * |child(1)| / max(NDV(L.c), NDV(R.d))
+            * - case A: NDV(L.c) <= NDV(R.d)
+     *   every row from child(0) joins with |child(1)| / NDV(R.d) rows
+     * - case B: NDV(L.c) > NDV(R.d)
+     *   every row from child(1) joins with |child(0)| / NDV(L.c) rows
+     * - we adjust the NDVs from both sides to account for predicates that may
+     *   might have reduce the cardinality and NDVs
+     */
+    private long getGenericJoinCardinality(List<EqJoinConjunctScanSlots> eqJoinConjunctSlots, long lhsCard, long rhsCard) {
+        Preconditions.checkState(joinOp.isInnerJoin() || joinOp.isOuterJoin());
+        Preconditions.checkState(!eqJoinConjunctSlots.isEmpty());
+        Preconditions.checkState(lhsCard >= 0 && rhsCard >= 0);
+
+        long result = -1;
+        for (EqJoinConjunctScanSlots slots: eqJoinConjunctSlots) {
+            // Adjust the NDVs on both sides to account for predicates. Intuitively, the NDVs
+            // should only decrease. We ignore adjustments that would lead to an increase.
+            double lhsAdjNdv = slots.lhsNdv();
+            if (slots.lhsNumRows() > lhsCard) {
+                lhsAdjNdv *= lhsCard / slots.lhsNumRows();
+            }
+            double rhsAdjNdv = slots.rhsNdv();
+            if (slots.rhsNumRows() > rhsCard) {
+                rhsAdjNdv *= rhsCard / slots.rhsNumRows();
+            }
+            // A lower limit of 1 on the max Adjusted Ndv ensures we don't estimate
+            // cardinality more than the max possible.
+            long joinCard = CheckedMath.checkedMultiply(
+                    Math.round((lhsCard / Math.max(1, Math.max(lhsAdjNdv, rhsAdjNdv)))), rhsCard);
+            if (result == -1) {
+                result = joinCard;
+            } else {
+                result = Math.min(result, joinCard);
+            }
+        }
+        Preconditions.checkState(result >= 0);
+        return result;
     }
 
     @Override
     public void computeStats(Analyzer analyzer) {
         super.computeStats(analyzer);
 
-        // For a join between child(0) and child(1), we look for join conditions "L.c = R.d"
-        // (with L being from child(0) and R from child(1)) and use as the cardinality
-        // estimate the maximum of
-        //   child(0).cardinality * R.cardinality / # distinct values for R.d
-        //     * child(1).cardinality / R.cardinality
-        // across all suitable join conditions, which simplifies to
-        //   child(0).cardinality * child(1).cardinality / # distinct values for R.d
-        // The reasoning is that
-        // - each row in child(0) joins with R.cardinality/#DV_R.d rows in R
-        // - each row in R is 'present' in child(1).cardinality / R.cardinality rows in
-        //   child(1)
-        //
-        // This handles the very frequent case of a fact table/dimension table join
-        // (aka foreign key/primary key join) if the primary key is a single column, with
-        // possible additional predicates against the dimension table. An example:
-        // FROM FactTbl F JOIN Customers C D ON (F.cust_id = C.id) ... WHERE C.region = 'US'
-        // - if there are 5 regions, the selectivity of "C.region = 'US'" would be 0.2
-        //   and the output cardinality of the Customers scan would be 0.2 * # rows in
-        //   Customers
-        // - # rows in Customers == # of distinct values for Customers.id
-        // - the output cardinality of the join would be F.cardinality * 0.2
-
-        long maxNumDistinct = 0;
-        for (BinaryPredicate eqJoinPredicate : eqJoinConjuncts) {
-            Expr lhsJoinExpr = eqJoinPredicate.getChild(0);
-            Expr rhsJoinExpr = eqJoinPredicate.getChild(1);
-            if (lhsJoinExpr.unwrapSlotRef() == null) {
-                continue;
-            }
-            SlotRef rhsSlotRef = rhsJoinExpr.unwrapSlotRef();
-            if (rhsSlotRef == null) {
-                continue;
-            }
-            SlotDescriptor slotDesc = rhsSlotRef.getDesc();
-            if (slotDesc == null) {
-                continue;
-            }
-            ColumnStats stats = slotDesc.getStats();
-            if (!stats.hasNumDistinctValues()) {
-                continue;
-            }
-            long numDistinct = stats.getNumDistinctValues();
-            // TODO rownum
-            //Table rhsTbl = slotDesc.getParent().getTableFamilyGroup().getBaseTable();
-            // if (rhsTbl != null && rhsTbl.getNumRows() != -1) {
-                // we can't have more distinct values than rows in the table, even though
-                // the metastore stats may think so
-                // LOG.info(
-                //   "#distinct=" + numDistinct + " #rows=" + Long.toString(rhsTbl.getNumRows()));
-                // numDistinct = Math.min(numDistinct, rhsTbl.getNumRows());
-            // }
-            maxNumDistinct = Math.max(maxNumDistinct, numDistinct);
-            LOG.debug("min slotref: {}, #distinct: {}", rhsSlotRef.toSql(), numDistinct);
+        if (!analyzer.getContext().getSessionVariable().isEnableJoinReorderBasedCost()) {
+            return;
         }
-
-        if (maxNumDistinct == 0) {
-            // if we didn't find any suitable join predicates or don't have stats
-            // on the relevant columns, we very optimistically assume we're doing an
-            // FK/PK join (which doesn't alter the cardinality of the left-hand side)
-            cardinality = getChild(0).cardinality;
+        if (joinOp.isSemiAntiJoin()) {
+            cardinality = getSemiJoinCardinality();
+        } else if (joinOp.isInnerJoin() || joinOp.isOuterJoin()) {
+            cardinality = getJoinCardinality();
         } else {
-            cardinality = Math.round((double) getChild(0).cardinality * (double) getChild(
-                1).cardinality / (double) maxNumDistinct);
-            LOG.debug("lhs card: {}, rhs card: {}", getChild(0).cardinality, getChild(1).cardinality);
+            Preconditions.checkState(false, "joinOp is not supported");
         }
-        LOG.debug("stats HashJoin: cardinality {}", cardinality);
+        capCardinalityAtLimit();
+        if (LOG.isDebugEnabled()) {
+            LOG.debug("stats HashJoin:" + id + ", cardinality: " + cardinality);
+        }
+    }
+
+    /**
+     * Unwraps the SlotRef in expr and returns the NDVs of it.
+     * Returns -1 if the NDVs are unknown or if expr is not a SlotRef.
+     */
+    private long getNdv(Expr expr) {
+        SlotRef slotRef = expr.unwrapSlotRef(false);
+        if (slotRef == null) {
+            return -1;
+        }
+        SlotDescriptor slotDesc = slotRef.getDesc();
+        if (slotDesc == null) {
+            return -1;
+        }
+        ColumnStats stats = slotDesc.getStats();
+        if (!stats.hasNumDistinctValues()) {
+            return -1;
+        }
+        return stats.getNumDistinctValues();
+    }
+
+    /**
+     * Returns the estimated cardinality of a semi join node.
+     * For a left semi join between child(0) and child(1), we look for equality join
+     * conditions "L.c = R.d" (with L being from child(0) and R from child(1)) and use as
+     * the cardinality estimate the minimum of
+     *   |child(0)| * Min(NDV(L.c), NDV(R.d)) / NDV(L.c)
+     * over all suitable join conditions. The reasoning is that:
+     * - each row in child(0) is returned at most once
+     * - the probability of a row in child(0) having a match in R is
+     *   Min(NDV(L.c), NDV(R.d)) / NDV(L.c)
+     *
+     * For a left anti join we estimate the cardinality as the minimum of:
+     *   |L| * Max(NDV(L.c) - NDV(R.d), NDV(L.c)) / NDV(L.c)
+     * over all suitable join conditions. The reasoning is that:
+     * - each row in child(0) is returned at most once
+     * - if NDV(L.c) > NDV(R.d) then the probability of row in L having a match
+     *   in child(1) is (NDV(L.c) - NDV(R.d)) / NDV(L.c)
+     * - otherwise, we conservatively use |L| to avoid underestimation
+     *
+     * We analogously estimate the cardinality for right semi/anti joins, and treat the
+     * null-aware anti join like a regular anti join
+     */
+    private long getSemiJoinCardinality() {
+        Preconditions.checkState(joinOp.isSemiJoin());
+
+        // Return -1 if the cardinality of the returned side is unknown.
+        long cardinality;
+        if (joinOp == JoinOperator.RIGHT_SEMI_JOIN
+                || joinOp == JoinOperator.RIGHT_ANTI_JOIN) {
+            if (getChild(1).cardinality == -1) {
+                return -1;
+            }
+            cardinality = getChild(1).cardinality;
+        } else {
+            if (getChild(0).cardinality == -1) {
+                return -1;
+            }
+            cardinality = getChild(0).cardinality;
+        }
+        double minSelectivity = 1.0;
+        for (Expr eqJoinPredicate: eqJoinConjuncts) {
+            long lhsNdv = getNdv(eqJoinPredicate.getChild(0));
+            lhsNdv = Math.min(lhsNdv, getChild(0).cardinality);
+            long rhsNdv = getNdv(eqJoinPredicate.getChild(1));
+            rhsNdv = Math.min(rhsNdv, getChild(1).cardinality);
+
+            // Skip conjuncts with unknown NDV on either side.
+            if (lhsNdv == -1 || rhsNdv == -1) {
+                continue;
+            }
+
+            double selectivity = 1.0;
+            switch (joinOp) {
+                case LEFT_SEMI_JOIN: {
+                    selectivity = (double) Math.min(lhsNdv, rhsNdv) / (double) (lhsNdv);
+                    break;
+                }
+                case RIGHT_SEMI_JOIN: {
+                    selectivity = (double) Math.min(lhsNdv, rhsNdv) / (double) (rhsNdv);
+                    break;
+                }
+                case LEFT_ANTI_JOIN:
+                case NULL_AWARE_LEFT_ANTI_JOIN: {
+                    selectivity = (double) (lhsNdv > rhsNdv ? (lhsNdv - rhsNdv): lhsNdv) / (double) lhsNdv;
+                    break;
+                }
+                case RIGHT_ANTI_JOIN: {
+                    selectivity = (double) (rhsNdv > lhsNdv ? (rhsNdv - lhsNdv): rhsNdv) / (double) rhsNdv;
+                    break;
+                }
+                default: Preconditions.checkState(false);
+            }
+            minSelectivity = Math.min(minSelectivity, selectivity);
+        }
+
+        Preconditions.checkState(cardinality != -1);
+        return Math.round(cardinality * minSelectivity);
     }
 
     @Override
@@ -292,6 +497,8 @@ public class HashJoinNode extends PlanNode {
             output.append(detailPrefix + "other predicates: ").append(
               getExplainString(conjuncts) + "\n");
         }
+        output.append(detailPrefix).append(String.format(
+                "cardinality=%s", cardinality)).append("\n");
         return output.toString();
     }
 

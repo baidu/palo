@@ -129,7 +129,7 @@ public class StreamLoadPlanner {
         // create scan node
         StreamLoadScanNode scanNode = new StreamLoadScanNode(loadId, new PlanNodeId(0), tupleDesc, destTable, taskInfo);
         scanNode.init(analyzer);
-        descTable.computeMemLayout();
+        descTable.computeStatAndMemLayout();
         scanNode.finalize(analyzer);
 
         // create dest sink

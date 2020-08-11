@@ -36,10 +36,10 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
+import java.util.List;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.util.List;
 
 /**
  * Computation of analytic exprs.
@@ -108,8 +108,8 @@ public class AnalyticEvalNode extends PlanNode {
 
     @Override
     public void init(Analyzer analyzer) throws UserException {
-        analyzer.getDescTbl().computeMemLayout();
-        intermediateTupleDesc.computeMemLayout();
+        analyzer.getDescTbl().computeStatAndMemLayout();
+        intermediateTupleDesc.computeStatAndMemLayout();
         // we add the analyticInfo's smap to the combined smap of our child
         outputSmap = logicalToPhysicalSmap;
         createDefaultSmap(analyzer);
@@ -138,7 +138,15 @@ public class AnalyticEvalNode extends PlanNode {
     @Override
     protected void computeStats(Analyzer analyzer) {
         super.computeStats(analyzer);
-        cardinality = getChild(0).cardinality;
+        if (!analyzer.safeIsEnableJoinReorderBasedCost()) {
+            return;
+        }
+        cardinality = cardinality == -1 ? getChild(0).cardinality : cardinality;
+        applyConjunctsSelectivity();
+        capCardinalityAtLimit();
+        if (LOG.isDebugEnabled()) {
+            LOG.debug("stats AnalyticEval: cardinality={}", cardinality);
+        }
     }
 
     @Override

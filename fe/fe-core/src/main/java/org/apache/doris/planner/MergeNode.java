@@ -24,16 +24,17 @@ import org.apache.doris.analysis.SlotId;
 import org.apache.doris.analysis.TupleDescriptor;
 import org.apache.doris.analysis.TupleId;
 import org.apache.doris.common.UserException;
-
 import org.apache.doris.thrift.TExplainLevel;
 import org.apache.doris.thrift.TExpr;
 import org.apache.doris.thrift.TMergeNode;
 import org.apache.doris.thrift.TPlanNode;
 import org.apache.doris.thrift.TPlanNodeType;
+
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
-import org.apache.logging.log4j.Logger;
+
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.util.List;
 
@@ -60,19 +61,9 @@ public class MergeNode extends PlanNode {
 
     protected final TupleId tupleId;
 
-    private final boolean isIntermediateMerge;
-
-    protected MergeNode(PlanNodeId id, TupleId tupleId) {
-        super(id, tupleId.asList(), "MERGE");
-       // this.rowTupleIds.add(tupleId);
-        this.tupleId = tupleId;
-        this.isIntermediateMerge = false;
-    }
-
     protected MergeNode(PlanNodeId id, MergeNode node) {
         super(id, node, "MERGE");
         this.tupleId = node.tupleId;
-        this.isIntermediateMerge = true;
     }
 
     public void addConstExprList(List<Expr> exprs) {
@@ -135,6 +126,9 @@ public class MergeNode extends PlanNode {
     @Override
     public void computeStats(Analyzer analyzer) {
         super.computeStats(analyzer);
+        if (!analyzer.safeIsEnableJoinReorderBasedCost()) {
+            return;
+        }
         cardinality = constExprLists.size();
         for (PlanNode child : children) {
             // ignore missing child cardinality info in the hope it won't matter enough
@@ -143,7 +137,11 @@ public class MergeNode extends PlanNode {
                 cardinality += child.cardinality;
             }
         }
-        LOG.debug("stats Merge: cardinality={}", Long.toString(cardinality));
+        applyConjunctsSelectivity();
+        capCardinalityAtLimit();
+        if (LOG.isDebugEnabled()) {
+            LOG.debug("stats Merge: cardinality={}", Long.toString(cardinality));
+        }
     }
 
     public List<List<Expr>> getResultExprLists() {
