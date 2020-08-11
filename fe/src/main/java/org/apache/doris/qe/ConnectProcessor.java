@@ -180,6 +180,7 @@ public class ConnectProcessor {
                 }
                 parsedStmt = stmts.get(i);
                 executor = new StmtExecutor(ctx, parsedStmt, new OriginStatement(originStmt, i));
+                ctx.setExecutor(executor);
                 executor.execute();
 
                 if (i != stmts.size() - 1) {
