@@ -76,6 +76,7 @@ public class SessionVariable implements Serializable, Writable {
     public static final String ENABLE_INSERT_STRICT = "enable_insert_strict";
     public static final String ENABLE_SPILLING = "enable_spilling";
     public static final String PREFER_JOIN_METHOD = "prefer_join_method";
+    public static final String ENABLE_FOLD_CONSTANT_BY_BE = "enable_fold_constant_by_be";
     
     public static final String ENABLE_SQL_CACHE = "enable_sql_cache";
     public static final String ENABLE_PARTITION_CACHE = "enable_partition_cache";
@@ -224,6 +225,9 @@ public class SessionVariable implements Serializable, Writable {
 
     @VariableMgr.VarAttr(name = PREFER_JOIN_METHOD)
     private String preferJoinMethod = "broadcast";
+
+    @VariableMgr.VarAttr(name = ENABLE_FOLD_CONSTANT_BY_BE)
+    private boolean enableFoldConstantByBe = false;
 
     /*
      * the parallel exec instance num for one Fragment in one BE
@@ -431,6 +435,10 @@ public class SessionVariable implements Serializable, Writable {
     public String getPreferJoinMethod() {return preferJoinMethod; }
 
     public void setPreferJoinMethod(String preferJoinMethod) {this.preferJoinMethod = preferJoinMethod; }
+
+    public boolean isEnableFoldConstantByBe() { return enableFoldConstantByBe; }
+
+    public void setEnableFoldConstantByBe(boolean foldConstantByBe) {this.enableFoldConstantByBe = foldConstantByBe; }
 
     public int getParallelExecInstanceNum() {
         return parallelExecInstanceNum;

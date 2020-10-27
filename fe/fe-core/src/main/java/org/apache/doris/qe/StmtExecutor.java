@@ -509,13 +509,18 @@ public class StmtExecutor {
     private void analyzeAndGenerateQueryPlan(TQueryOptions tQueryOptions) throws UserException {
         parsedStmt.analyze(analyzer);
         if (parsedStmt instanceof QueryStmt || parsedStmt instanceof InsertStmt) {
+            ExprRewriter rewriter = analyzer.getExprRewriter();
+            rewriter.reset();
+            if (context.getSessionVariable().isEnableFoldConstantByBe()) {
+                // fold constant expr
+                parsedStmt.foldConstant(rewriter);
+
+            }
             boolean isExplain = parsedStmt.isExplain();
             boolean isVerbose = parsedStmt.isVerbose();
             // Apply expr and subquery rewrites.
             boolean reAnalyze = false;
 
-            ExprRewriter rewriter = analyzer.getExprRewriter();
-            rewriter.reset();
             parsedStmt.rewriteExprs(rewriter);
             reAnalyze = rewriter.changed();
             if (analyzer.containSubquery()) {

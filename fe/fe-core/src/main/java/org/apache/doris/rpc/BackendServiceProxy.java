@@ -23,6 +23,7 @@ import org.apache.doris.proto.PCacheResponse;
 import org.apache.doris.proto.PCancelPlanFragmentRequest;
 import org.apache.doris.proto.PCancelPlanFragmentResult;
 import org.apache.doris.proto.PClearCacheRequest;
+import org.apache.doris.proto.PConstantExprResult;
 import org.apache.doris.proto.PExecPlanFragmentResult;
 import org.apache.doris.proto.PFetchCacheRequest;
 import org.apache.doris.proto.PFetchCacheResult;
@@ -34,6 +35,7 @@ import org.apache.doris.proto.PTriggerProfileReportResult;
 import org.apache.doris.proto.PUniqueId;
 import org.apache.doris.proto.PUpdateCacheRequest;
 import org.apache.doris.thrift.TExecPlanFragmentParams;
+import org.apache.doris.thrift.TFoldConstantParams;
 import org.apache.doris.thrift.TNetworkAddress;
 import org.apache.doris.thrift.TUniqueId;
 
@@ -225,6 +227,19 @@ public class BackendServiceProxy {
             return service.getInfo(request);
         } catch (Throwable e) {
             LOG.warn("failed to get info, address={}:{}", address.getHostname(), address.getPort(), e);
+            throw new RpcException(address.hostname, e.getMessage());
+        }
+    }
+
+    public Future<PConstantExprResult> foldConstantExpr(
+            TNetworkAddress address, TFoldConstantParams tParams) throws RpcException, TException {
+        PConstantExprRequest request = new PConstantExprRequest();
+        request.setRequest(tParams);
+        try {
+            final PBackendService service = getProxy(address);
+            return service.foldConstantExpr(request);
+        } catch (Throwable e) {
+            LOG.warn("failed to fold constant expr, address={}:{}", address.getHostname(), address.getPort(), e);
             throw new RpcException(address.hostname, e.getMessage());
         }
     }

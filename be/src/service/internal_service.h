@@ -88,8 +88,15 @@ public:
     void clear_cache(google::protobuf::RpcController* controller, const PClearCacheRequest* request,
                      PCacheResponse* response, google::protobuf::Closure* done) override;
 
+    void fold_constant_expr(google::protobuf::RpcController* controller,
+                            const PConstantExprRequest* request,
+                            PConstantExprResult* response,
+                            google::protobuf::Closure* done) override;
+
 private:
     Status _exec_plan_fragment(brpc::Controller* cntl);
+
+    Status _fold_constant_expr(brpc::Controller* cntl, PConstantExprResult* response);
 
 private:
     ExecEnv* _exec_env;

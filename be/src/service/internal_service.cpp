@@ -23,10 +23,12 @@
 #include "runtime/buffer_control_block.h"
 #include "runtime/data_stream_mgr.h"
 #include "runtime/exec_env.h"
+#include "runtime/fold_constant_mgr.h"
 #include "runtime/fragment_mgr.h"
 #include "runtime/load_channel_mgr.h"
 #include "runtime/result_buffer_mgr.h"
 #include "runtime/routine_load/routine_load_task_executor.h"
+#include "runtime/runtime_state.h"
 #include "service/brpc.h"
 #include "util/thrift_util.h"
 #include "util/uid_util.h"
@@ -234,6 +236,35 @@ void PInternalServiceImpl<T>::clear_cache(google::protobuf::RpcController* contr
                                           google::protobuf::Closure* done) {
     brpc::ClosureGuard closure_guard(done);
     _exec_env->result_cache()->clear(request, response);
+}
+
+template<typename T>
+void PInternalServiceImpl<T>::fold_constant_expr(
+    google::protobuf::RpcController* cntl_base,
+    const PConstantExprRequest* request,
+    PConstantExprResult* response,
+    google::protobuf::Closure* done) {
+
+    brpc::ClosureGuard closure_guard(done);
+    brpc::Controller* cntl = static_cast<brpc::Controller*>(cntl_base);
+    auto st = _fold_constant_expr(cntl, response);
+    if (!st.ok()) {
+        LOG(WARNING) << "exec fold constant expr failed, errmsg=" << st.get_error_msg();
+    }
+    st.to_protobuf(response->mutable_status());
+}
+
+template<typename T>
+Status PInternalServiceImpl<T>::_fold_constant_expr(brpc::Controller* cntl, PConstantExprResult* response) {
+    auto ser_request = cntl->request_attachment().to_string();
+    TFoldConstantParams t_request;
+    {
+        const uint8_t* buf = (const uint8_t*)ser_request.data();
+        uint32_t len = ser_request.size();
+        RETURN_IF_ERROR(deserialize_thrift_msg(buf, &len, false, &t_request));
+    }
+    FoldConstantMgr mgr(_exec_env);
+    return mgr.fold_constant_expr(t_request, response);
 }
 
 template class PInternalServiceImpl<PBackendService>;

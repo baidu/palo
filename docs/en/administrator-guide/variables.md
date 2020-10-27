@@ -73,7 +73,12 @@ Variables that support both session-level and global-level setting include:
 * `batch_size`
 * `parallel_fragment_exec_instance_num`
 * `parallel_exchange_instance_num`
+<<<<<<< HEAD
 * `allow_partition_column_nullable`
+* `fold_constant_by_be`
+=======
+* `enable_fold_constant_by_be`
+>>>>>>> 26ccfb414... [Internal][#doris-887]Bring back calculate constant expression by Backends in all parts of sql stmt.
 
 Variables that support only global-level setting include:
 
@@ -365,3 +370,8 @@ Note that the comment must start with /*+ and can only follow the SELECT.
 * `allow_partition_column_nullable`
 
     Whether to allow the partition column to be NULL when creating the table. The default is true, which means NULL is allowed. false means the partition column must be defined as NOT NULL.
+
+* `enable_fold_constant_by_be`
+
+    Used to control the calculation method of constant folding. The default is `false`, that is, calculation is performed in `FE`; if it is set to `true`, it will be calculated by `BE` through `RPC` request.
+

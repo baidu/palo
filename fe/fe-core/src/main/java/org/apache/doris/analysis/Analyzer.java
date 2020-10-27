@@ -831,6 +831,14 @@ public class Analyzer {
     }
 
     /**
+     * register expr id
+     * @param expr
+     */
+    void registerExprId(Expr expr) {
+        expr.setId(globalState.conjunctIdGenerator.getNextId());
+    }
+
+    /**
      * Register individual conjunct with all tuple and slot ids it references
      * and with the global conjunct list.
      */
@@ -1570,6 +1578,14 @@ public class Analyzer {
     public void setChangeResSmap(ExprSubstitutionMap changeResSmap) {
         this.changeResSmap = changeResSmap;
     }
+
+    public boolean safeIsEnableFoldConstantByBe() {
+        if (globalState.context == null) {
+            return false;
+        }
+        return globalState.context.getSessionVariable().isEnableFoldConstantByBe();
+    }
+
     /**
      * Returns true if predicate 'e' can be correctly evaluated by a tree materializing
      * 'tupleIds', otherwise false:

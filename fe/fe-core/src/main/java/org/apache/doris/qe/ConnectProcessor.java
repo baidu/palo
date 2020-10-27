@@ -411,6 +411,9 @@ public class ConnectProcessor {
             UserIdentity currentUserIdentity = UserIdentity.fromThrift(request.getCurrentUserIdent());
             ctx.setCurrentUserIdentity(currentUserIdentity);
         }
+        if (request.isFoldConstantByBe()) {
+            ctx.getSessionVariable().setEnableFoldConstantByBe(request.foldConstantByBe);
+        }
 
         if (request.isSetQueryOptions()) {
             TQueryOptions queryOptions = request.getQueryOptions();

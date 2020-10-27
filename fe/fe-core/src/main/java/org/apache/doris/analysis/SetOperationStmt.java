@@ -518,6 +518,32 @@ public class SetOperationStmt extends QueryStmt {
     }
 
     @Override
+    public void collectExprs(Map<String, Expr> exprMap) {
+        for (SetOperand op : operands) {
+            op.getQueryStmt().collectExprs(exprMap);
+        }
+        if (orderByElements != null) {
+            for (OrderByElement orderByElement : orderByElements) {
+                Expr expr = orderByElement.getExpr();
+                registerExprId(expr);
+                exprMap.put(expr.getId().toString(), expr);
+            }
+        }
+    }
+
+    @Override
+    public void putBackExprs(Map<String, Expr> rewrittenExprMap) {
+        for (SetOperand op : operands) {
+            op.getQueryStmt().putBackExprs(rewrittenExprMap);
+        }
+        if (orderByElements != null) {
+            for (OrderByElement orderByElement : orderByElements) {
+                orderByElement.setExpr(rewrittenExprMap.get(orderByElement.getExpr().getId().toString()));
+            }
+        }
+    }
+
+    @Override
     public void rewriteExprs(ExprRewriter rewriter) throws AnalysisException {
         for (SetOperand op: operands) op.getQueryStmt().rewriteExprs(rewriter);
         if (orderByElements != null) {

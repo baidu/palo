@@ -73,7 +73,12 @@ SET GLOBAL exec_mem_limit = 137438953472
 * `batch_size`
 * `parallel_fragment_exec_instance_num`
 * `parallel_exchange_instance_num`
+<<<<<<< HEAD
 * `allow_partition_column_nullable`
+* `fold_constant_by_be`
+=======
+* `enable_fold_constant_by_be`
+>>>>>>> 26ccfb414... [Internal][#doris-887]Bring back calculate constant expression by Backends in all parts of sql stmt.
 
 只支持全局生效的变量包括：
 
@@ -364,3 +369,7 @@ SELECT /*+ SET_VAR(query_timeout = 1) */ sleep(3);
 * `allow_partition_column_nullable`
 
     建表时是否允许分区列为NULL。默认为true，表示允许为NULL。false 表示分区列必须被定义为NOT NULL
+
+* `enable_fold_constant_by_be`
+
+    用于控制常量折叠的计算方式。默认是 `false`，即在 `FE` 进行计算；若设置为 `true`，则通过 `RPC` 请求经 `BE` 计算。 

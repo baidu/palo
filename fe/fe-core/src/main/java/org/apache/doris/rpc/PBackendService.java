@@ -21,6 +21,7 @@ import org.apache.doris.proto.PCacheResponse;
 import org.apache.doris.proto.PCancelPlanFragmentRequest;
 import org.apache.doris.proto.PCancelPlanFragmentResult;
 import org.apache.doris.proto.PClearCacheRequest;
+import org.apache.doris.proto.PConstantExprResult;
 import org.apache.doris.proto.PExecPlanFragmentResult;
 import org.apache.doris.proto.PFetchCacheRequest;
 import org.apache.doris.proto.PFetchCacheResult;
@@ -63,5 +64,9 @@ public interface PBackendService {
 
     @ProtobufRPC(serviceName = "PBackendService", methodName = "get_info", onceTalkTimeout = 10000)
     Future<PProxyResult> getInfo(PProxyRequest request);
+
+    @ProtobufRPC(serviceName = "PBackendService", methodName = "fold_constant_expr",
+            attachmentHandler = ThriftClientAttachmentHandler.class, onceTalkTimeout = 10000)
+    Future<PConstantExprResult> foldConstantExpr(PConstantExprRequest request);
 }
 
