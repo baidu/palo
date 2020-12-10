@@ -59,17 +59,22 @@ struct ResultFileOptions {
     }
 };
 
+class BufferControlBlock;
 // write result to file
 class FileResultWriter final : public ResultWriter {
 public:
     FileResultWriter(const ResultFileOptions* file_option,
                      const std::vector<ExprContext*>& output_expr_ctxs,
-                     RuntimeProfile* parent_profile);
+                     RuntimeProfile* parent_profile,
+                     BufferControlBlock* sinker);
     virtual ~FileResultWriter();
 
     virtual Status init(RuntimeState* state) override;
     virtual Status append_row_batch(const RowBatch* batch) override;
     virtual Status close() override;
+
+    // file result writer always return statistic result in one row
+    virtual int64_t get_written_rows() const { return 1; }
 
 private:
     Status _write_csv_file(const RowBatch& batch);
@@ -82,12 +87,14 @@ private:
 
     Status _create_file_writer();
     // get next export file name
-    std::string _get_next_file_name();
+    Status _get_next_file_name(std::string* file_name);
     std::string _file_format_to_name();
     // close file writer, and if !done, it will create new writer for next file
     Status _close_file_writer(bool done);
     // create a new file if current file size exceed limit
     Status _create_new_file_if_exceed_size();
+    // send the final statistic result
+    Status _send_result();
 
 private:
     RuntimeState* _state; // not owned, set when init
@@ -126,6 +133,10 @@ private:
     RuntimeProfile::Counter* _written_rows_counter = nullptr;
     // bytes of written data
     RuntimeProfile::Counter* _written_data_bytes = nullptr;
+
+    BufferControlBlock* _sinker;
+    // set to true if the final statistic result is sent
+    bool _is_result_sent = false;
 };
 
 } // namespace doris
