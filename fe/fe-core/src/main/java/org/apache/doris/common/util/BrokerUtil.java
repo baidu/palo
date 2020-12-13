@@ -54,12 +54,12 @@ import org.apache.doris.thrift.TBrokerVersion;
 import org.apache.doris.thrift.TNetworkAddress;
 import org.apache.doris.thrift.TPaloBrokerService;
 
-import com.google.common.base.Preconditions;
-import com.google.common.collect.Lists;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.thrift.TException;
+
+import com.google.common.base.Preconditions;
+import com.google.common.collect.Lists;
 
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -179,7 +179,7 @@ public class BrokerUtil {
      * @return byte[]
      * @throws UserException if broker op failed or not only one file
      */
-    public static byte[] readFile(String path, BrokerDesc brokerDesc) throws UserException {
+    public static byte[] readFile(String path, BrokerDesc brokerDesc, long maxReadLen) throws UserException {
         TNetworkAddress address = getAddress(brokerDesc);
         TPaloBrokerService.Client client = borrowClient(address);
         boolean failed = true;
@@ -226,8 +226,12 @@ public class BrokerUtil {
             fd = tOpenReaderResponse.getFd();
 
             // read
+            long readLen = fileSize;
+            if (maxReadLen > 0 && maxReadLen < fileSize) {
+                readLen = maxReadLen;
+            }
             TBrokerPReadRequest tPReadRequest = new TBrokerPReadRequest(
-                    TBrokerVersion.VERSION_ONE, fd, 0, fileSize);
+                    TBrokerVersion.VERSION_ONE, fd, 0, readLen);
             TBrokerReadResponse tReadResponse = null;
             try {
                 tReadResponse = client.pread(tPReadRequest);
