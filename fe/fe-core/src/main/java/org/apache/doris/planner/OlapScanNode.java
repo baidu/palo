@@ -305,7 +305,7 @@ public class OlapScanNode extends ScanNode {
             throw new UserException(e.getMessage());
         }
         if (!analyzer.safeIsEnableJoinReorderBasedCost()) {
-            computeStats(analyzer);
+            computeOldRowSizeAndCardinality();
         }
         computeNumNodes();
     }
@@ -316,17 +316,17 @@ public class OlapScanNode extends ScanNode {
         }
     }
 
-    @Override
-    public void computeStats(Analyzer analyzer) {
-        // avgRowSize = totalBytes / (float) cardinality;
-        // the totalByte is not accurate, so we use the TupleDescriptor to calc avgRowSize
-        super.computeStats(analyzer);
-        capCardinalityAtLimit();
+    public void computeOldRowSizeAndCardinality() {
+        if (cardinality > 0) {
+            avgRowSize = totalBytes / (float) cardinality;
+            capCardinalityAtLimit();
+        }
         // when node scan has no data, cardinality should be 0 instead of a invalid value after computeStats()
         cardinality = cardinality == -1 ? 0 : cardinality;
     }
 
-    private void computeNumNodes() {
+    @Override
+    protected void computeNumNodes() {
         if (cardinality > 0) {
             numNodes = scanBackendIds.size();
         }

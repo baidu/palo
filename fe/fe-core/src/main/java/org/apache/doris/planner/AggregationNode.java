@@ -207,6 +207,35 @@ public class AggregationNode extends PlanNode {
         }
     }
 
+    @Override
+    protected void computeOldCardinality() {
+        List<Expr> groupingExprs = aggInfo.getGroupingExprs();
+        cardinality = 1;
+        // cardinality: product of # of distinct values produced by grouping exprs
+        for (Expr groupingExpr : groupingExprs) {
+            long numDistinct = groupingExpr.getNumDistinctValues();
+            // TODO: remove these before 1.0
+            LOG.debug("grouping expr: " + groupingExpr.toSql() + " #distinct=" + Long.toString(
+                    numDistinct));
+            if (numDistinct == -1) {
+                cardinality = -1;
+                break;
+            }
+            cardinality *= numDistinct;
+        }
+        // take HAVING predicate into account
+        LOG.debug("Agg: cardinality=" + Long.toString(cardinality));
+        if (cardinality > 0) {
+            cardinality = Math.round((double) cardinality * computeOldSelectivity());
+            LOG.debug("sel=" + Double.toString(computeOldSelectivity()));
+        }
+        // if we ended up with an overflow, the estimate is certain to be wrong
+        if (cardinality < 0) {
+            cardinality = -1;
+        }
+        LOG.debug("stats Agg: cardinality=" + Long.toString(cardinality));
+    }
+
     private void updateplanNodeName() {
         StringBuilder sb = new StringBuilder();
         sb.append("AGGREGATE");

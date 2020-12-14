@@ -417,10 +417,20 @@ abstract public class PlanNode extends TreeNode<PlanNode> {
         for (PlanNode child : children) {
             child.finalize(analyzer);
         }
+        computeNumNodes();
+        if (!analyzer.safeIsEnableJoinReorderBasedCost()) {
+            computeOldCardinality();
+        }
+    }
+
+    protected void computeNumNodes() {
+        if (!children.isEmpty()) {
+            numNodes = getChild(0).numNodes;
+        }
     }
 
     /**
-     * Computes planner statistics: avgRowSize, numNodes.
+     * Computes planner statistics: avgRowSize.
      * Subclasses need to override this.
      * Assumes that it has already been called on all children.
      * This is broken out of finalize() so that it can be called separately
@@ -433,9 +443,17 @@ abstract public class PlanNode extends TreeNode<PlanNode> {
             TupleDescriptor desc = analyzer.getTupleDesc(tid);
             avgRowSize += desc.getAvgSerializedSize();
         }
-        if (!children.isEmpty()) {
-            numNodes = getChild(0).numNodes;
-        }
+    }
+
+    /**
+     * This function will calculate the cardinality when the old join reorder algorithm is enabled.
+     * This value is used to determine the distributed way(broadcast of shuffle) of join in the distributed planning.
+     *
+     * If the new join reorder and the old join reorder have the same cardinality calculation method,
+     *   also the calculation is completed in the init(),
+     *   there is no need to override this function.
+     */
+    protected void computeOldCardinality() {
     }
 
     protected void capCardinalityAtLimit() {
@@ -650,6 +668,21 @@ abstract public class PlanNode extends TreeNode<PlanNode> {
             expr.setSelectivity();
         }
         return computeCombinedSelectivity(conjuncts);
+    }
+
+    /**
+     * Compute the product of the selectivity of all conjuncts.
+     * This function is used for old cardinality in finalize()
+     */
+    protected double computeOldSelectivity() {
+        double prod = 1.0;
+        for (Expr e : conjuncts) {
+            if (e.getSelectivity() < 0) {
+                return -1.0;
+            }
+            prod *= e.getSelectivity();
+        }
+        return prod;
     }
 
     // Compute the cardinality after applying conjuncts based on 'preConjunctCardinality'.

@@ -87,6 +87,19 @@ public class CrossJoinNode extends PlanNode {
     }
 
     @Override
+    protected void computeOldCardinality() {
+        if (getChild(0).cardinality == -1 || getChild(1).cardinality == -1) {
+            cardinality = -1;
+        } else {
+            cardinality = getChild(0).cardinality * getChild(1).cardinality;
+            if (computeOldSelectivity() != -1) {
+                cardinality = Math.round(((double) cardinality) * computeOldSelectivity());
+            }
+        }
+        LOG.debug("stats CrossJoin: cardinality={}", Long.toString(cardinality));
+    }
+
+    @Override
     protected String debugString() {
         return MoreObjects.toStringHelper(this).addValue(super.debugString()).toString();
     }

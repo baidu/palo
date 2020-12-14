@@ -378,7 +378,9 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
 
         // Do all the analysis for the expr subclass before marking the Expr analyzed.
         analyzeImpl(analyzer);
-        setSelectivity();
+        if (analyzer.safeIsEnableJoinReorderBasedCost()) {
+            setSelectivity();
+        }
         analysisDone();
     }
 

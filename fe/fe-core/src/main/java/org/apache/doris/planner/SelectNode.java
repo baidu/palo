@@ -75,6 +75,18 @@ public class SelectNode extends PlanNode {
     }
 
     @Override
+    protected void computeOldCardinality() {
+        long cardinality = getChild(0).cardinality;
+        double selectivity = computeOldSelectivity();
+        if (cardinality < 0 || selectivity < 0) {
+            this.cardinality = -1;
+        } else {
+            this.cardinality = Math.round(cardinality * selectivity);
+        }
+        LOG.debug("stats Select: cardinality={}", this.cardinality);
+    }
+
+    @Override
     protected String getNodeExplainString(String prefix, TExplainLevel detailLevel) {
         StringBuilder output = new StringBuilder();
         if (!conjuncts.isEmpty()) {

@@ -136,6 +136,19 @@ public class SortNode extends PlanNode {
     }
 
     @Override
+    protected void computeOldCardinality() {
+        cardinality = getChild(0).cardinality;
+        if (hasLimit()) {
+            if (cardinality == -1) {
+                cardinality = limit;
+            } else {
+                cardinality = Math.min(cardinality, limit);
+            }
+        }
+        LOG.debug("stats Sort: cardinality=" + Long.toString(cardinality));
+    }
+
+    @Override
     protected String debugString() {
         List<String> strings = Lists.newArrayList();
         for (Boolean isAsc : info.getIsAscOrder()) {

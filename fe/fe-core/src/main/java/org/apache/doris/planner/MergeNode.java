@@ -144,6 +144,19 @@ public class MergeNode extends PlanNode {
         }
     }
 
+    @Override
+    protected void computeOldCardinality() {
+        cardinality = constExprLists.size();
+        for (PlanNode child : children) {
+            // ignore missing child cardinality info in the hope it won't matter enough
+            // to change the planning outcome
+            if (child.cardinality > 0) {
+                cardinality += child.cardinality;
+            }
+        }
+        LOG.debug("stats Merge: cardinality={}", Long.toString(cardinality));
+    }
+
     public List<List<Expr>> getResultExprLists() {
         return resultExprLists;
     }

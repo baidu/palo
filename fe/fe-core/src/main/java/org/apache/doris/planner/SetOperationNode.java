@@ -131,6 +131,15 @@ public abstract class SetOperationNode extends PlanNode {
         if (!analyzer.safeIsEnableJoinReorderBasedCost()) {
             return;
         }
+        computeCardinality();
+    }
+
+    @Override
+    protected void computeOldCardinality() {
+        computeCardinality();
+    }
+
+    private void computeCardinality() {
         cardinality = constExprLists_.size();
         for (PlanNode child : children) {
             // ignore missing child cardinality info in the hope it won't matter enough
@@ -150,14 +159,6 @@ public abstract class SetOperationNode extends PlanNode {
             LOG.trace("stats Union: cardinality=" + cardinality);
         }
     }
-
-    /*
-    @Override
-    public void computeResourceProfile(TQueryOptions queryOptions) {
-        // TODO: add an estimate
-        resourceProfile_ = new ResourceProfile(0, 0);
-    }
-    */
 
     /**
      * Returns true if rows from the child with 'childTupleIds' and 'childResultExprs' can

@@ -101,9 +101,6 @@ public class RepeatNode extends PlanNode {
     public void computeStats(Analyzer analyzer) {
         avgRowSize = 0;
         numNodes = 1;
-        if (!analyzer.safeIsEnableJoinReorderBasedCost()) {
-            return;
-        }
         cardinality = 0;
         if (LOG.isDebugEnabled()) {
             LOG.debug("stats Sort: cardinality=" + cardinality);

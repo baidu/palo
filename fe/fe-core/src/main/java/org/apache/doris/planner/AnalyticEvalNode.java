@@ -150,6 +150,11 @@ public class AnalyticEvalNode extends PlanNode {
     }
 
     @Override
+    protected void computeOldCardinality() {
+        cardinality = getChild(0).cardinality;
+    }
+
+    @Override
     protected String debugString() {
         List<String> orderByElementStrs = Lists.newArrayList();
 
