@@ -49,6 +49,7 @@ import com.google.common.collect.Maps;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.util.Collections;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -174,7 +175,16 @@ public class MetaInfoActionV2 extends RestBaseController {
      *         "schemaInfo": {
      *             "schemaMap": {
      *                 "tbl1": {
-     *                     "schema": {
+     *                     "schema": [{
+     *                         "field": "k1",
+     *                         "type": "INT",
+     *                         "isNull": "true",
+     *                         "defaultVal": null,
+     *                         "key": "true",
+     *                         "aggrType": "None",
+     *                         "comment": ""
+     *                     },
+     *                     {
      *                         "field": "k2",
      *                         "type": "INT",
      *                         "isNull": "true",
@@ -183,6 +193,16 @@ public class MetaInfoActionV2 extends RestBaseController {
      *                         "aggrType": "None",
      *                         "comment": ""
      *                     },
+     *                     {
+     *                         "field": "v1",
+     *                         "type": "INT",
+     *                         "isNull": "false",
+     *                         "defaultVal": null,
+     *                         "key": "false",
+     *                         "aggrType": "None",
+     *                         "comment": ""
+     *                     }
+     *                     ],
      *                     "keyType": "DUP_KEYS",
      *                     "baseIndex": true
      *                 }
@@ -243,7 +263,7 @@ public class MetaInfoActionV2 extends RestBaseController {
             TableSchema baseTableSchema = new TableSchema();
             baseTableSchema.setBaseIndex(true);
             baseTableSchema.setKeyType(olapTable.getKeysTypeByIndexId(baseIndexId).name());
-            Schema baseSchema = generateSchame(olapTable.getSchemaByIndexId(baseIndexId));
+            List<Schema> baseSchema = generateSchame(olapTable.getSchemaByIndexId(baseIndexId));
             baseTableSchema.setSchema(baseSchema);
             schemaMap.put(olapTable.getIndexNameById(baseIndexId), baseTableSchema);
 
@@ -252,7 +272,7 @@ public class MetaInfoActionV2 extends RestBaseController {
                     TableSchema tableSchema = new TableSchema();
                     tableSchema.setBaseIndex(false);
                     tableSchema.setKeyType(olapTable.getKeysTypeByIndexId(indexId).name());
-                    Schema schema = generateSchame(olapTable.getSchemaByIndexId(indexId));
+                    List<Schema> schema = generateSchame(olapTable.getSchemaByIndexId(indexId));
                     tableSchema.setSchema(schema);
                     schemaMap.put(olapTable.getIndexNameById(indexId), tableSchema);
                 }
@@ -261,7 +281,7 @@ public class MetaInfoActionV2 extends RestBaseController {
         } else {
             TableSchema tableSchema = new TableSchema();
             tableSchema.setBaseIndex(false);
-            Schema schema = generateSchame(tbl.getBaseSchema());
+            List<Schema> schema = generateSchame(tbl.getBaseSchema());
             tableSchema.setSchema(schema);
             schemaMap.put(tbl.getName(), tableSchema);
             schemaInfo.setSchemaMap(schemaMap);
@@ -270,9 +290,10 @@ public class MetaInfoActionV2 extends RestBaseController {
         return schemaInfo;
     }
 
-    private Schema generateSchame(List<Column> columns) {
-        Schema schema = new Schema();
+    private List<Schema> generateSchame(List<Column> columns) {
+        List<Schema> schemaList = new ArrayList<>();
         for (Column column : columns) {
+            Schema schema = new Schema();
             schema.setField(column.getName());
             schema.setType(column.getType().toString());
             schema.setIsNull(String.valueOf(column.isAllowNull()));
@@ -281,8 +302,9 @@ public class MetaInfoActionV2 extends RestBaseController {
             schema.setAggrType(column.getAggregationType() == null ?
                     "None" : column.getAggregationType().toString());
             schema.setComment(column.getComment());
+            schemaList.add(schema);
         }
-        return schema;
+        return schemaList;
     }
 
     private void generateResult(Table tbl, boolean isBaseIndex,
@@ -373,7 +395,7 @@ public class MetaInfoActionV2 extends RestBaseController {
     @Getter
     @Setter
     public static class TableSchema {
-        private Schema schema;
+        private List<Schema> schema;
         private boolean isBaseIndex;
         private String keyType;
     }
