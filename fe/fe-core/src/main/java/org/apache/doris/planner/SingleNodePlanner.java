@@ -978,13 +978,10 @@ public class SingleNodePlanner {
             for (TableRef ref : selectStmt.getTableRefs()) {
                 materializeTableResultForCrossJoinOrCountStar(ref, analyzer);
                 PlanNode plan = createTableRefNode(analyzer, ref, selectStmt);
+                turnOffPreAgg(aggInfo, selectStmt, analyzer, plan);
 
-                aggInfo = selectStmt.getAggInfo();
-
-                turnOffPreAgg(aggInfo, selectStmt, analyzer, root);
-
-                if (root instanceof OlapScanNode) {
-                    OlapScanNode olapNode = (OlapScanNode) root;
+                if (plan instanceof OlapScanNode) {
+                    OlapScanNode olapNode = (OlapScanNode) plan;
                     // this olap scan node has been turn off pre-aggregation, should not be turned on again.
                     // e.g. select sum(v1) from (select v1 from test_table);
                     if (!olapNode.isPreAggregation()) {
