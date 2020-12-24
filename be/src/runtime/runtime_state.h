@@ -342,6 +342,8 @@ public:
 
     bool enable_spill() const { return _query_options.enable_spilling; }
 
+    bool enable_runtime_filter_mode() { return _query_options.enable_runtime_filter_mode; }
+
     // the following getters are only valid after Prepare()
     InitialReservations* initial_reservations() const { return _initial_reservations; }
 

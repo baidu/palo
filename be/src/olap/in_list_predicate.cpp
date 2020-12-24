@@ -23,9 +23,9 @@
 
 namespace doris {
 
-#define IN_LIST_PRED_CONSTRUCTOR(CLASS)                             \
-    template <class type>                                           \
-    CLASS<type>::CLASS(uint32_t column_id, std::set<type>&& values) \
+#define IN_LIST_PRED_CONSTRUCTOR(CLASS)                                       \
+    template <class type>                                                     \
+    CLASS<type>::CLASS(uint32_t column_id, std::unordered_set<type>&& values) \
             : ColumnPredicate(column_id), _values(std::move(values)) {}
 
 IN_LIST_PRED_CONSTRUCTOR(InListPredicate)
@@ -150,18 +150,20 @@ IN_LIST_PRED_COLUMN_BLOCK_EVALUATE(NotInListPredicate, ==)
 IN_LIST_PRED_BITMAP_EVALUATE(InListPredicate, &=)
 IN_LIST_PRED_BITMAP_EVALUATE(NotInListPredicate, -=)
 
-#define IN_LIST_PRED_CONSTRUCTOR_DECLARATION(CLASS)                                         \
-    template CLASS<int8_t>::CLASS(uint32_t column_id, std::set<int8_t>&& values);           \
-    template CLASS<int16_t>::CLASS(uint32_t column_id, std::set<int16_t>&& values);         \
-    template CLASS<int32_t>::CLASS(uint32_t column_id, std::set<int32_t>&& values);         \
-    template CLASS<int64_t>::CLASS(uint32_t column_id, std::set<int64_t>&& values);         \
-    template CLASS<int128_t>::CLASS(uint32_t column_id, std::set<int128_t>&& values);       \
-    template CLASS<float>::CLASS(uint32_t column_id, std::set<float>&& values);             \
-    template CLASS<double>::CLASS(uint32_t column_id, std::set<double>&& values);           \
-    template CLASS<decimal12_t>::CLASS(uint32_t column_id, std::set<decimal12_t>&& values); \
-    template CLASS<StringValue>::CLASS(uint32_t column_id, std::set<StringValue>&& values); \
-    template CLASS<uint24_t>::CLASS(uint32_t column_id, std::set<uint24_t>&& values);       \
-    template CLASS<uint64_t>::CLASS(uint32_t column_id, std::set<uint64_t>&& values);
+#define IN_LIST_PRED_CONSTRUCTOR_DECLARATION(CLASS)                                             \
+    template CLASS<int8_t>::CLASS(uint32_t column_id, std::unordered_set<int8_t>&& values);     \
+    template CLASS<int16_t>::CLASS(uint32_t column_id, std::unordered_set<int16_t>&& values);   \
+    template CLASS<int32_t>::CLASS(uint32_t column_id, std::unordered_set<int32_t>&& values);   \
+    template CLASS<int64_t>::CLASS(uint32_t column_id, std::unordered_set<int64_t>&& values);   \
+    template CLASS<int128_t>::CLASS(uint32_t column_id, std::unordered_set<int128_t>&& values); \
+    template CLASS<float>::CLASS(uint32_t column_id, std::unordered_set<float>&& values);       \
+    template CLASS<double>::CLASS(uint32_t column_id, std::unordered_set<double>&& values);     \
+    template CLASS<decimal12_t>::CLASS(uint32_t column_id,                                      \
+                                       std::unordered_set<decimal12_t>&& values);               \
+    template CLASS<StringValue>::CLASS(uint32_t column_id,                                      \
+                                       std::unordered_set<StringValue>&& values);               \
+    template CLASS<uint24_t>::CLASS(uint32_t column_id, std::unordered_set<uint24_t>&& values); \
+    template CLASS<uint64_t>::CLASS(uint32_t column_id, std::unordered_set<uint64_t>&& values);
 
 IN_LIST_PRED_CONSTRUCTOR_DECLARATION(InListPredicate)
 IN_LIST_PRED_CONSTRUCTOR_DECLARATION(NotInListPredicate)

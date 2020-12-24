@@ -138,6 +138,8 @@ struct TQueryOptions {
   30: optional i32 max_pushdown_conditions_per_column
   // whether enable spilling to disk
   31: optional bool enable_spilling = false;
+  // whether enable runtime filter
+  32: optional bool enable_runtime_filter_mode = true;
 }
     
 

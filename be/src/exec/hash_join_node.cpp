@@ -21,7 +21,7 @@
 
 #include "exec/hash_table.hpp"
 #include "exprs/expr.h"
-#include "exprs/in_predicate.h"
+#include "exprs/runtime_filter.h"
 #include "exprs/slot_ref.h"
 #include "gen_cpp/PlanNodes_types.h"
 #include "runtime/row_batch.h"
@@ -270,33 +270,20 @@ Status HashJoinNode::open(RuntimeState* state) {
             return Status::OK();
         }
 
-        if (_hash_tbl->size() > 1024) {
-            _is_push_down = false;
-        }
+        _is_push_down = state->enable_runtime_filter_mode();
 
-        // TODO: this is used for Code Check, Remove this later
-        if (_is_push_down || 0 != child(1)->conjunct_ctxs().size()) {
+        if (_is_push_down) {
+            RuntimeFilter runtime_filter(state, expr_mem_tracker().get(), _pool);
             for (int i = 0; i < _probe_expr_ctxs.size(); ++i) {
-                TExprNode node;
-                node.__set_node_type(TExprNodeType::IN_PRED);
-                TScalarType tscalar_type;
-                tscalar_type.__set_type(TPrimitiveType::BOOLEAN);
-                TTypeNode ttype_node;
-                ttype_node.__set_type(TTypeNodeType::SCALAR);
-                ttype_node.__set_scalar_type(tscalar_type);
-                TTypeDesc t_type_desc;
-                t_type_desc.types.push_back(ttype_node);
-                node.__set_type(t_type_desc);
-                node.in_predicate.__set_is_not_in(false);
-                node.__set_opcode(TExprOpcode::FILTER_IN);
-                node.__isset.vector_opcode = true;
-                node.__set_vector_opcode(to_in_opcode(_probe_expr_ctxs[i]->root()->type().type));
-                // NOTE(zc): in predicate only used here, no need prepare.
-                InPredicate* in_pred = _pool->add(new InPredicate(node));
-                RETURN_IF_ERROR(in_pred->prepare(state, _probe_expr_ctxs[i]->root()->type()));
-                in_pred->add_child(Expr::copy(_pool, _probe_expr_ctxs[i]->root()));
-                ExprContext* ctx = _pool->add(new ExprContext(in_pred));
-                _push_down_expr_ctxs.push_back(ctx);
+                if (_hash_tbl->size() <= config::runtime_filter_max_in_num) {
+                    runtime_filter.create_runtime_predicate(RuntimeFilterType::IN_FILTER, i,
+                                                            _probe_expr_ctxs[i], _hash_tbl->size());
+                } else {
+                    runtime_filter.create_runtime_predicate(RuntimeFilterType::BLOOM_FILTER, i,
+                                                            _probe_expr_ctxs[i], _hash_tbl->size());
+                    runtime_filter.create_runtime_predicate(RuntimeFilterType::MINMAX_FILTER, i,
+                                                            _probe_expr_ctxs[i], _hash_tbl->size());
+                }
             }
 
             {
@@ -305,12 +292,12 @@ Status HashJoinNode::open(RuntimeState* state) {
 
                 while (iter.has_next()) {
                     TupleRow* row = iter.get_row();
-                    std::list<ExprContext*>::iterator ctx_iter = _push_down_expr_ctxs.begin();
 
-                    for (int i = 0; i < _build_expr_ctxs.size(); ++i, ++ctx_iter) {
+                    for (int i = 0; i < _build_expr_ctxs.size(); ++i) {
+                        //TODO may be we could use the the result from hash table
+                        // to reduce caculate build_expr_ctxs
                         void* val = _build_expr_ctxs[i]->get_value(row);
-                        InPredicate* in_pre = (InPredicate*)((*ctx_iter)->root());
-                        in_pre->insert(val);
+                        runtime_filter.insert(i, val);
                     }
 
                     SCOPED_TIMER(_build_timer);
@@ -319,6 +306,7 @@ Status HashJoinNode::open(RuntimeState* state) {
             }
 
             SCOPED_TIMER(_push_down_timer);
+            runtime_filter.get_push_expr_ctxs(&_push_down_expr_ctxs);
             push_down_predicate(state, &_push_down_expr_ctxs);
         }
 

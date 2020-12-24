@@ -148,9 +148,15 @@ void ExecNode::push_down_predicate(RuntimeState* state, std::list<ExprContext*>*
         if ((*iter)->root()->is_bound(&_tuple_ids)) {
             // LOG(INFO) << "push down success expr is " << (*iter)->debug_string()
             //          << " and node is " << debug_string();
-            (*iter)->prepare(state, row_desc(), _expr_mem_tracker);
-            (*iter)->open(state);
-            _conjunct_ctxs.push_back(*iter);
+            if ((*iter)->root()->node_type() == TExprNodeType::BLOOM_PRED &&
+                (this->type() != TPlanNodeType::EXCHANGE_NODE &&
+                 this->type() != TPlanNodeType::OLAP_SCAN_NODE)) {
+                // ignore
+            } else {
+                (*iter)->prepare(state, row_desc(), _expr_mem_tracker);
+                (*iter)->open(state);
+                _conjunct_ctxs.push_back(*iter);
+            }
             iter = expr_ctxs->erase(iter);
         } else {
             ++iter;

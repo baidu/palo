@@ -149,7 +149,7 @@ public:
             *(col_data + i) = i;                                                                  \
         }                                                                                         \
                                                                                                   \
-        std::set<TYPE> values;                                                                    \
+        std::unordered_set<TYPE> values;                                                                    \
         values.insert(4);                                                                         \
         values.insert(5);                                                                         \
         values.insert(6);                                                                         \
@@ -196,7 +196,7 @@ TEST_IN_LIST_PREDICATE(int128_t, LARGEINT, "LARGEINT")
         int size = 10;                                                                            \
         Schema schema(tablet_schema);                                                             \
         RowBlockV2 block(schema, size);                                                           \
-        std::set<TYPE> values;                                                                    \
+        std::unordered_set<TYPE> values;                                                                    \
         values.insert(4);                                                                         \
         values.insert(5);                                                                         \
         values.insert(6);                                                                         \
@@ -272,7 +272,7 @@ TEST_F(TestInListPredicate, FLOAT_COLUMN) {
     for (int i = 0; i < size; ++i) {
         *(col_data + i) = i + 0.1;
     }
-    std::set<float> values;
+    std::unordered_set<float> values;
     values.insert(4.1);
     values.insert(5.1);
     values.insert(6.1);
@@ -324,7 +324,7 @@ TEST_F(TestInListPredicate, DOUBLE_COLUMN) {
     for (int i = 0; i < size; ++i) {
         *(col_data + i) = i + 0.1;
     }
-    std::set<double> values;
+    std::unordered_set<double> values;
     values.insert(4.1);
     values.insert(5.1);
     values.insert(6.1);
@@ -380,7 +380,7 @@ TEST_F(TestInListPredicate, DECIMAL_COLUMN) {
         (*(col_data + i)).fraction = i;
     }
 
-    std::set<decimal12_t> values;
+    std::unordered_set<decimal12_t> values;
     decimal12_t value1(4, 4);
     values.insert(value1);
 
@@ -450,7 +450,7 @@ TEST_F(TestInListPredicate, CHAR_COLUMN) {
         string_buffer += 5;
     }
 
-    std::set<StringValue> values;
+    std::unordered_set<StringValue> values;
     StringValue value1;
     const char* value1_buffer = "aaaaa";
     value1.ptr = const_cast<char*>(value1_buffer);
@@ -534,7 +534,7 @@ TEST_F(TestInListPredicate, VARCHAR_COLUMN) {
         string_buffer += i + 1;
     }
 
-    std::set<StringValue> values;
+    std::unordered_set<StringValue> values;
     StringValue value1;
     const char* value1_buffer = "a";
     value1.ptr = const_cast<char*>(value1_buffer);
@@ -617,7 +617,7 @@ TEST_F(TestInListPredicate, DATE_COLUMN) {
         *(col_data + i) = timestamp;
     }
 
-    std::set<uint24_t> values;
+    std::unordered_set<uint24_t> values;
     uint24_t value1 = datetime::timestamp_from_date("2017-09-09");
     values.insert(value1);
 
@@ -687,7 +687,7 @@ TEST_F(TestInListPredicate, DATETIME_COLUMN) {
         *(col_data + i) = timestamp;
     }
 
-    std::set<uint64_t> values;
+    std::unordered_set<uint64_t> values;
     uint64_t value1 = datetime::timestamp_from_datetime("2017-09-09 00:00:01");
     values.insert(value1);
 

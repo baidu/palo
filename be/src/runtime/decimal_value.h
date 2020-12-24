@@ -24,6 +24,7 @@
 #include <cstring>
 #include <iostream>
 #include <sstream>
+#include <limits>
 #include <string>
 
 #include "common/logging.h"

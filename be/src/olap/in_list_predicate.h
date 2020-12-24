@@ -22,8 +22,60 @@
 
 #include <roaring/roaring.hh>
 #include <set>
+#include <unordered_set>
 
+#include "decimal12.h"
 #include "olap/column_predicate.h"
+#include "uint24.h"
+#include "util/murmur_hash3.h"
+
+namespace std {
+// for string value
+template <>
+struct hash<doris::StringValue> {
+    uint64_t operator()(const doris::StringValue& rhs) const {
+        uint64_t hash_val;
+        murmur_hash3_x64_64(rhs.ptr, rhs.len, 0, &hash_val);
+        return hash_val;
+    }
+};
+
+template <>
+struct equal_to<doris::StringValue> {
+    bool operator()(const doris::StringValue& lhs, const doris::StringValue& rhs) const {
+        return lhs == rhs;
+    }
+};
+// for decimal12_t
+template <>
+struct hash<doris::decimal12_t> {
+    int64_t operator()(const doris::decimal12_t& rhs) const {
+        return hash<int64_t>()(rhs.integer) ^ hash<int32_t>()(rhs.fraction);
+    }
+};
+
+template <>
+struct equal_to<doris::decimal12_t> {
+    bool operator()(const doris::decimal12_t& lhs, const doris::decimal12_t& rhs) const {
+        return lhs == rhs;
+    }
+};
+// for uint24_t
+template <>
+struct hash<doris::uint24_t> {
+    size_t operator()(const doris::uint24_t& rhs) const {
+        uint32_t val(rhs);
+        return hash<int>()(val);
+    }
+};
+
+template <>
+struct equal_to<doris::uint24_t> {
+    bool operator()(const doris::uint24_t& lhs, const doris::uint24_t& rhs) const {
+        return lhs == rhs;
+    }
+};
+} // namespace std
 
 namespace doris {
 
@@ -33,7 +85,7 @@ class VectorizedRowBatch;
     template <class type>                                                                \
     class CLASS : public ColumnPredicate {                                               \
     public:                                                                              \
-        CLASS(uint32_t column_id, std::set<type>&& values);                              \
+        CLASS(uint32_t column_id, std::unordered_set<type>&& values);                    \
         virtual ~CLASS() {}                                                              \
         virtual void evaluate(VectorizedRowBatch* batch) const override;                 \
         void evaluate(ColumnBlock* block, uint16_t* sel, uint16_t* size) const override; \
@@ -42,7 +94,7 @@ class VectorizedRowBatch;
                                 uint32_t num_rows, Roaring* bitmap) const override;      \
                                                                                          \
     private:                                                                             \
-        std::set<type> _values;                                                          \
+        std::unordered_set<type> _values;                                                \
     };
 
 IN_LIST_PRED_CLASS_DEFINE(InListPredicate)
