@@ -33,7 +33,7 @@ export default function Home(params: any) {
             .catch(err=>{
                 setHardwareData({
                     VersionInfo:{},
-                    HarewareInfo:{},
+                    HardwareInfo:{},
                 });
             });
     };
@@ -67,10 +67,10 @@ export default function Home(params: any) {
             <Divider/>
             <Title>Hardware Info</Title>
             <Paragraph style={{background: '#f9f9f9',padding: '20px'}}>
-                {...getItems(hardwareData.HarewareInfo, true)}
+                {...getItems(hardwareData.HardwareInfo, true)}
             </Paragraph>
             <BackTop></BackTop>
-            {hardwareData.HarewareInfo?'':<Spin style={{'position':'relative','top':'50%','left':'50%'}}/>}
+            {hardwareData.HardwareInfo?'':<Spin style={{'position':'relative','top':'50%','left':'50%'}}/>}
         </Typography>
     );
 }
