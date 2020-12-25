@@ -576,6 +576,7 @@ struct TStreamLoadPutRequest {
     28: optional string delete_condition
     29: optional string sequence_col
     30: optional bool num_as_string
+    31: optional bool fuzzy_parse
 }
 
 struct TStreamLoadPutResult {
