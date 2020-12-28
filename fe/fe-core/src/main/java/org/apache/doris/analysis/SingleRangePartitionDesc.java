@@ -147,7 +147,7 @@ public class SingleRangePartitionDesc {
         StringBuilder sb = new StringBuilder();
         sb.append("PARTITION ").append(partName);
         if (partitionKeyDesc.getPartitionType() == PartitionRangeType.LESS_THAN) {
-            sb.append(" VALUES LESS THEN ");
+            sb.append(" VALUES LESS THAN ");
         } else {
             sb.append(" VALUES ");
         }

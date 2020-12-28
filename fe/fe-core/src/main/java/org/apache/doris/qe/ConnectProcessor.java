@@ -17,6 +17,7 @@
 
 package org.apache.doris.qe;
 
+import org.apache.doris.analysis.InsertStmt;
 import org.apache.doris.analysis.KillStmt;
 import org.apache.doris.analysis.SqlParser;
 import org.apache.doris.analysis.SqlScanner;
@@ -146,7 +147,13 @@ public class ConnectProcessor {
         if (!ctx.getState().isQuery() && (parsedStmt != null && parsedStmt.needAuditEncryption())) {
             ctx.getAuditEventBuilder().setStmt(parsedStmt.toSql());
         } else {
-            ctx.getAuditEventBuilder().setStmt(origStmt);
+            if (parsedStmt instanceof InsertStmt && ((InsertStmt)parsedStmt).isValuesOrConstantSelect()) {
+                // INSERT INTO VALUES may be very long, so we only log at most 1K bytes.
+                int length = Math.min(1024, origStmt.length());
+                ctx.getAuditEventBuilder().setStmt(origStmt.substring(0, length));
+            } else {
+                ctx.getAuditEventBuilder().setStmt(origStmt);
+            }
         }
         
         Catalog.getCurrentAuditEventProcessor().handleAuditEvent(ctx.getAuditEventBuilder().build());

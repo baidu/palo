@@ -186,9 +186,9 @@ public class RangePartitionDesc extends PartitionDesc {
         /*
          * validate key range
          * eg.
-         * VALUE LESS THEN (10, 100, 1000)
-         * VALUE LESS THEN (50, 500)
-         * VALUE LESS THEN (80)
+         * VALUE LESS THAN (10, 100, 1000)
+         * VALUE LESS THAN (50, 500)
+         * VALUE LESS THAN (80)
          * 
          * key range is:
          * ( {MIN, MIN, MIN},     {10,  100, 1000} )
