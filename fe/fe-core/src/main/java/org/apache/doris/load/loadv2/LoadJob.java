@@ -1093,4 +1093,18 @@ public abstract class LoadJob extends AbstractTxnStateChangeCallback implements 
             return GsonUtils.GSON.fromJson(json, LoadJobStateUpdateInfo.class);
         }
     }
+
+    // Return true if this job is finished for a long time
+    public boolean isExpired(long currentTimeMs) {
+        if (!isCompleted()) {
+            return false;
+        }
+        long expireTime = Config.label_keep_max_second;
+        if (jobType ==EtlJobType.INSERT) {
+            expireTime = Config.streaming_label_keep_max_second;
+        }
+
+        return (currentTimeMs - getFinishTimestamp()) / 1000 > expireTime;
+    }
+
 }

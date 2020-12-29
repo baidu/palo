@@ -148,7 +148,6 @@ import org.apache.doris.load.Load;
 import org.apache.doris.load.LoadChecker;
 import org.apache.doris.load.LoadErrorHub;
 import org.apache.doris.load.LoadJob;
-import org.apache.doris.load.LoadJob.JobState;
 import org.apache.doris.load.loadv2.LoadEtlChecker;
 import org.apache.doris.load.loadv2.LoadJobScheduler;
 import org.apache.doris.load.loadv2.LoadLoadingChecker;
@@ -259,7 +258,6 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-
 
 public class Catalog {
     private static final Logger LOG = LogManager.getLogger(Catalog.class);
@@ -1635,16 +1633,15 @@ public class Catalog {
 
             int loadJobCount = dis.readInt();
             newChecksum ^= loadJobCount;
+            long currentTimeMs = System.currentTimeMillis();
             for (int j = 0; j < loadJobCount; j++) {
                 LoadJob job = new LoadJob();
                 job.readFields(dis);
-                long currentTimeMs = System.currentTimeMillis();
 
                 // Delete the history load jobs that are older than
                 // LABEL_KEEP_MAX_MS
                 // This job must be FINISHED or CANCELLED
-                if ((currentTimeMs - job.getCreateTimeMs()) / 1000 <= Config.label_keep_max_second
-                        || (job.getState() != JobState.FINISHED && job.getState() != JobState.CANCELLED)) {
+                if (!job.isExpired(currentTimeMs)) {
                     load.unprotectAddLoadJob(job, true /* replay */);
                 }
             }
@@ -1685,6 +1682,7 @@ public class Catalog {
             // 4. load delete jobs
             int deleteJobSize = dis.readInt();
             newChecksum ^= deleteJobSize;
+            long currentTimeMs = System.currentTimeMillis();
             for (int i = 0; i < deleteJobSize; i++) {
                 long dbId = dis.readLong();
                 newChecksum ^= dbId;
@@ -1694,13 +1692,11 @@ public class Catalog {
                 for (int j = 0; j < deleteJobCount; j++) {
                     LoadJob job = new LoadJob();
                     job.readFields(dis);
-                    long currentTimeMs = System.currentTimeMillis();
 
                     // Delete the history load jobs that are older than
                     // LABEL_KEEP_MAX_MS
                     // This job must be FINISHED or CANCELLED
-                    if ((currentTimeMs - job.getCreateTimeMs()) / 1000 <= Config.label_keep_max_second
-                            || (job.getState() != JobState.FINISHED && job.getState() != JobState.CANCELLED)) {
+                    if (!job.isExpired(currentTimeMs)) {
                         load.unprotectAddLoadJob(job, true /* replay */);
                     }
                 }

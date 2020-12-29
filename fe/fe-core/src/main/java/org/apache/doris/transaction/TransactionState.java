@@ -485,7 +485,15 @@ public class TransactionState implements Writable {
     
     // return true if txn is in final status and label is expired
     public boolean isExpired(long currentMillis) {
-        return transactionStatus.isFinalStatus() && (currentMillis - finishTime) / 1000 > Config.label_keep_max_second;
+        if (!transactionStatus.isFinalStatus()) {
+            return false;
+        }
+        long expireTime = Config.label_keep_max_second;
+        if (sourceType == LoadJobSourceType.BACKEND_STREAMING || sourceType == LoadJobSourceType.INSERT_STREAMING
+                || sourceType == LoadJobSourceType.ROUTINE_LOAD_TASK) {
+            expireTime = Config.stream_load_default_timeout_second;
+        }
+        return (currentMillis - finishTime) / 1000 > expireTime;
     }
 
     // return true if txn is running but timeout
