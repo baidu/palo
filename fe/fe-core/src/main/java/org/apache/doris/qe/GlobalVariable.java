@@ -43,7 +43,7 @@ public final class GlobalVariable {
     public static final String PERFORMANCE_SCHEMA = "performance_schema";
 
     @VariableMgr.VarAttr(name = VERSION_COMMENT, flag = VariableMgr.READ_ONLY)
-    public static String versionComment = "Doris version " +
+    public static String versionComment = "Baidu Doris(Palo) version " +
             Version.DORIS_BUILD_VERSION + "-" + Version.DORIS_BUILD_SHORT_HASH;
 
     @VariableMgr.VarAttr(name = VERSION, flag = VariableMgr.READ_ONLY)
