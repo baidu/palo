@@ -133,12 +133,15 @@ public class CatalogOperationTest {
             Assert.assertEquals(AlterJobV2.JobState.FINISHED, alterJobV2.getJobState());
         }
 
+        Thread.sleep(2);
         renameTblStmt = "alter table test.newNewTest rename r1";
         alterTableStmt = (AlterTableStmt)UtFrameUtils.parseAndAnalyzeStmt(renameTblStmt, connectContext);
         try {
             Catalog.getCurrentCatalog().getAlterInstance().processAlterTable(alterTableStmt);
             Assert.fail();
         } catch (DdlException e) {
+            System.err.println("Rename table error:");
+            e.printStackTrace();
             Assert.assertTrue(e.getMessage().contains("New name conflicts with rollup index name: r1"));
         }
 
