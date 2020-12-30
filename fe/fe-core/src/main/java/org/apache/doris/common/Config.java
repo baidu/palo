@@ -1329,4 +1329,10 @@ public class Config extends ConfigBase {
      */
     @ConfField(mutable = true, masterOnly = true)
     public static boolean enable_fe_heartbeat_by_thrift = false;
+
+    /**
+     * If set to true, FE will be started in BDBJE debug mode
+     */
+    @ConfField
+    public static boolean enable_bdbje_debug_mode = false;
 }
