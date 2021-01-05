@@ -444,7 +444,7 @@ public class BrokerUtil {
         return new TNetworkAddress(broker.ip, broker.port);
     }
 
-    private static TPaloBrokerService.Client borrowClient(TNetworkAddress address) throws UserException {
+    public static TPaloBrokerService.Client borrowClient(TNetworkAddress address) throws UserException {
         TPaloBrokerService.Client client = null;
         try {
             client = ClientPool.brokerPool.borrowObject(address);

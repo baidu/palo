@@ -22,9 +22,12 @@ import lombok.Setter;
 
 import org.apache.doris.analysis.BrokerDesc;
 import org.apache.doris.common.UserException;
+import org.apache.doris.common.parquet.ParquetReader;
 import org.apache.doris.common.util.BrokerUtil;
 import org.apache.doris.httpv2.entity.ResponseEntityBuilder;
 import org.apache.doris.thrift.TBrokerFileStatus;
+
+import com.google.common.collect.Lists;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -33,12 +36,12 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.google.common.collect.Lists;
+import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-import java.util.List;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/rest/v2")
@@ -48,16 +51,22 @@ public class ImportAction {
 
     private static final long MAX_READ_LEN_BYTES = 1024 * 1024; // 1MB
 
+    private static final String FORMAT_CSV = "CSV";
+    private static final String FORMAT_PARQUET = "PARQUET";
+    private static final String FORMAT_ORC = "ORC";
+
+    private static final int MAX_SAMPLE_LINE = 50;
+
     /**
      * Request body:
      * {
      *  "fileInfo": {
-     *      "columnSeparator": ",",//文件的分隔符
-     *      "fileUrl": "hdfs://127.0.0.1:50070/file/test/text*",
-     *      "format": "TXT",//文件类型，包括TXT,ORC,Parquet,CSV四种
+     *      "columnSeparator": ",",     //文件的分隔符
+     *      "fileUrl": "hdfs:           //127.0.0.1:50070/file/test/text*",
+     *      "format": "TXT"             //文件类型，包括 ORC, PARQUET, CSV 3种
      *  },
-     *  "connectInfo": {    // 可选
-     *      "brokerName" : "my_broker"
+     *  "connectInfo": {                // 可选
+     *      "brokerName" : "my_broker",
      *      "brokerProps" : {
      *          "username" : "yyy",
      *          "password" : "xxx"
@@ -104,18 +113,24 @@ public class ImportAction {
         }
 
         // Begin to preview first file.
-        // Currently we only support csv file format.
-        if (!fileInfo.format.equals("CSV")) {
-            return responseVo;
-        }
-
-        // read some content of sample file
         TBrokerFileStatus sampleFile = fileStatuses.get(0);
-        byte[] fileContentBytes = BrokerUtil.readFile(sampleFile.path, brokerDesc, MAX_READ_LEN_BYTES);
-
         FileSample fileSample = new FileSample();
         fileSample.setSampleFileName(sampleFile.path);
-        parseContent(fileInfo.columnSeparator,"\n", fileContentBytes, fileSample);
+
+        if (fileInfo.format.equalsIgnoreCase(FORMAT_CSV)) {
+            byte[] fileContentBytes = BrokerUtil.readFile(sampleFile.path, brokerDesc, MAX_READ_LEN_BYTES);
+            parseContent(fileInfo.columnSeparator, "\n", fileContentBytes, fileSample);
+        } else if (fileInfo.format.equalsIgnoreCase(FORMAT_PARQUET)) {
+            try {
+                ParquetReader parquetReader = ParquetReader.create(sampleFile.path, brokerDesc);
+                parseParquet(parquetReader, fileSample);
+            } catch (IOException e) {
+                LOG.warn("failed to get sample data of parquet file: {}", sampleFile.path, e);
+                throw new UserException("failed to get sample data of parquet file. " + e.getMessage());
+            }
+        } else {
+            throw new UserException("Only support CSV or PARQUET file format");
+        }
 
         responseVo.setFileSample(fileSample);
         return responseVo;
@@ -128,6 +143,9 @@ public class ImportAction {
         String content = new String(fileContentBytes);
         String[] lines = content.split(lineDelimiter);
         for (String line : lines) {
+            if (sampleLines.size() >= MAX_SAMPLE_LINE) {
+                break;
+            }
             String[] cols = line.split(columnSeparator);
             List<String> row = Lists.newArrayList(cols);
             sampleLines.add(row);
@@ -138,6 +156,13 @@ public class ImportAction {
         fileSample.setMaxColumnSize(maxColSize);
         fileSample.setSampleFileLines(sampleLines);
         return;
+    }
+
+    private void parseParquet(ParquetReader reader, FileSample fileSample) throws IOException {
+        fileSample.setColNames(reader.getSchema(false));
+        fileSample.setMaxColumnSize(fileSample.colNames.size());
+        fileSample.setSampleFileLines(reader.getLines(MAX_SAMPLE_LINE));
+        fileSample.setFileLineNumber(fileSample.sampleFileLines.size());
     }
 
     @Getter
@@ -182,6 +207,7 @@ public class ImportAction {
         private String sampleFileName;
         private int fileLineNumber;
         private int maxColumnSize;
+        private List<String> colNames;
         private List<List<String>> sampleFileLines;
     }
 
