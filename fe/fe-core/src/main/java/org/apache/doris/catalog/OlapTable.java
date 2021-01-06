@@ -898,6 +898,9 @@ public class OlapTable extends Table {
         throw new RuntimeException("Don't support anymore");
     }
 
+    // This is currently only use for Restore job.
+    // If 2 tables have same signature, we consider these 2 tables have same structure.
+    // Double check the logic if you wany to use it in other process.
     public int getSignature(int signatureVersion, List<String> partNames) {
         Adler32 adler32 = new Adler32();
         adler32.update(signatureVersion);
@@ -920,8 +923,14 @@ public class OlapTable extends Table {
                 LOG.debug("signature. index name: {}", indexName);
                 MaterializedIndexMeta indexMeta = indexIdToMeta.get(indexId);
                 // schema hash
-                adler32.update(indexMeta.getSchemaHash());
-                LOG.debug("signature. index schema hash: {}", indexMeta.getSchemaHash());
+                // Calculate schema hash instead of using the schema hash in indexMeta,
+                // Because we do not need schema version.
+                // For Backup and Restore job, the schema version between 2 palo clusters may be different.
+                // And also, the schema hash is generated randomly when doing schema change.
+                // So we should calculate it at runtime.
+                int schemaHash = Util.schemaHash(0, indexMeta.getSchema(), bfColumns, bfFpp);
+                adler32.update(schemaHash);
+                LOG.debug("signature. index schema hash: {}", schemaHash);
                 // short key column count
                 adler32.update(indexMeta.getShortKeyColumnCount());
                 LOG.debug("signature. index short key: {}", indexMeta.getShortKeyColumnCount());
@@ -964,7 +973,7 @@ public class OlapTable extends Table {
                     HashDistributionInfo hashDistributionInfo = (HashDistributionInfo) distributionInfo;
                     adler32.update(Util.schemaHash(0, hashDistributionInfo.getDistributionColumns(), null, 0));
                     LOG.debug("signature. distribution col hash: {}",
-                              Util.schemaHash(0, hashDistributionInfo.getDistributionColumns(), null, 0));
+                            Util.schemaHash(0, hashDistributionInfo.getDistributionColumns(), null, 0));
                     adler32.update(hashDistributionInfo.getBucketNum());
                     LOG.debug("signature. bucket num: {}", hashDistributionInfo.getBucketNum());
                 }

@@ -195,5 +195,4 @@ public class MaterializedIndexMeta implements Writable, GsonPostProcessable {
             throw new IOException("error happens when parsing create materialized view stmt: " + defineStmt, e);
         }
     }
-
 }

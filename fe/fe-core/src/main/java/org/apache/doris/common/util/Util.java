@@ -230,9 +230,6 @@ public class Util {
                 String typeString = null;
                 switch (dataType) {
                     case CHAR:
-                        typeString = String.format(
-                                TYPE_STRING_MAP.get(dataType), column.getStrLen());
-                        break;
                     case VARCHAR:
                         typeString = String.format(
                                 TYPE_STRING_MAP.get(dataType), column.getStrLen());
