@@ -75,10 +75,14 @@ Variables that support both session-level and global-level setting include:
 * `parallel_exchange_instance_num`
 <<<<<<< HEAD
 * `allow_partition_column_nullable`
+<<<<<<< HEAD
 * `fold_constant_by_be`
 =======
 * `enable_fold_constant_by_be`
 >>>>>>> 26ccfb414... [Internal][#doris-887]Bring back calculate constant expression by Backends in all parts of sql stmt.
+=======
+* `insert_visible_timeout_ms`
+>>>>>>> 05631cfa4... [Config] Add publish timeout param when exec insert (#5170)
 
 Variables that support only global-level setting include:
 
@@ -375,3 +379,7 @@ Note that the comment must start with /*+ and can only follow the SELECT.
 
     Used to control the calculation method of constant folding. The default is `false`, that is, calculation is performed in `FE`; if it is set to `true`, it will be calculated by `BE` through `RPC` request.
 
+* `insert_visible_timeout_ms`
+
+    When execute insert statement, doris will wait for the transaction to commit and visible after the import is completed.
+    This parameter controls the timeout of waiting for transaction to be visible. The default value is 10000, and the minimum value is 1000.

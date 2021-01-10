@@ -425,6 +425,10 @@ public class ConnectProcessor {
             ctx.getSessionVariable().setEnableFoldConstantByBe(request.foldConstantByBe);
         }
 
+        if (request.isSetInsertVisibleTimeoutMs()) {
+            ctx.getSessionVariable().setInsertVisibleTimeoutMs(request.getInsertVisibleTimeoutMs());
+        }
+
         if (request.isSetQueryOptions()) {
             TQueryOptions queryOptions = request.getQueryOptions();
             if (queryOptions.isSetMemLimit()) {

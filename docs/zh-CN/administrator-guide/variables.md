@@ -75,10 +75,14 @@ SET GLOBAL exec_mem_limit = 137438953472
 * `parallel_exchange_instance_num`
 <<<<<<< HEAD
 * `allow_partition_column_nullable`
+<<<<<<< HEAD
 * `fold_constant_by_be`
 =======
 * `enable_fold_constant_by_be`
 >>>>>>> 26ccfb414... [Internal][#doris-887]Bring back calculate constant expression by Backends in all parts of sql stmt.
+=======
+* `insert_visible_timeout_ms`
+>>>>>>> 05631cfa4... [Config] Add publish timeout param when exec insert (#5170)
 
 只支持全局生效的变量包括：
 
@@ -373,3 +377,7 @@ SELECT /*+ SET_VAR(query_timeout = 1) */ sleep(3);
 * `enable_fold_constant_by_be`
 
     用于控制常量折叠的计算方式。默认是 `false`，即在 `FE` 进行计算；若设置为 `true`，则通过 `RPC` 请求经 `BE` 计算。 
+
+* `insert_visible_timeout_ms`
+
+    在执行insert语句时，导入动作(查询和插入)完成后，还需要等待事务提交，使数据可见。此参数控制等待数据可见的超时时间，默认为10000，最小为1000。

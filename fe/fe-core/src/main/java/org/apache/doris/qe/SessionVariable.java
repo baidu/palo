@@ -115,6 +115,13 @@ public class SessionVariable implements Serializable, Writable {
     public static final String ALLOW_PARTITION_COLUMN_NULLABLE = "allow_partition_column_nullable";
 
     public static final String ENABLE_RUNTIME_FILTER_MODE = "enable_runtime_filter_mode";
+    // max ms to wait transaction publish finish when exec insert stmt.
+    public static final String INSERT_VISIBLE_TIMEOUT_MS = "insert_visible_timeout_ms";
+    public static final long DEFAULT_INSERT_VISIBLE_TIMEOUT_MS = 10_000;
+    public static final long MIN_INSERT_VISIBLE_TIMEOUT_MS = 1000; // If user set a very small value, use this value instead.
+
+    @VariableMgr.VarAttr(name = INSERT_VISIBLE_TIMEOUT_MS)
+    private long insertVisibleTimeoutMs = DEFAULT_INSERT_VISIBLE_TIMEOUT_MS;
 
     // max memory used on every backend.
     @VariableMgr.VarAttr(name = EXEC_MEM_LIMIT)
@@ -571,6 +578,21 @@ public class SessionVariable implements Serializable, Writable {
         this.enableRuntimeFilterMode = enableRuntimeFilterMode;
     }
 
+    public long getInsertVisibleTimeoutMs() {
+        if (insertVisibleTimeoutMs < MIN_INSERT_VISIBLE_TIMEOUT_MS) {
+            return MIN_INSERT_VISIBLE_TIMEOUT_MS;
+        } else {
+            return insertVisibleTimeoutMs;
+        }
+    }
+
+    public void setInsertVisibleTimeoutMs(long insertVisibleTimeoutMs) {
+        if (insertVisibleTimeoutMs < MIN_INSERT_VISIBLE_TIMEOUT_MS) {
+            this.insertVisibleTimeoutMs = MIN_INSERT_VISIBLE_TIMEOUT_MS;
+        } else {
+            this.insertVisibleTimeoutMs = insertVisibleTimeoutMs;
+        }
+    }
 
     // Serialize to thrift object
     // used for rest api

@@ -444,6 +444,7 @@ struct TMasterOpRequest {
     16: optional PaloInternalService.TQueryOptions query_options
     17: optional bool foldConstantByBe
     18: optional Types.TUniqueId query_id // when this is a query, we translate this query id to master
+    19: optional i64 insert_visible_timeout_ms
 }
 
 struct TColumnDefinition {
