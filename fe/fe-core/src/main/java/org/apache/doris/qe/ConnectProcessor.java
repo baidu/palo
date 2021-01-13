@@ -285,14 +285,14 @@ public class ConnectProcessor {
             ctx.getState().setError("Unknown database(" + ctx.getDatabase() + ")");
             return;
         }
-        db.readLock();
-        try {
-            Table table = db.getTable(tableName);
-            if (table == null) {
-                ctx.getState().setError("Unknown table(" + tableName + ")");
-                return;
-            }
+        Table table = db.getTable(tableName);
+        if (table == null) {
+            ctx.getState().setError("Unknown table(" + tableName + ")");
+            return;
+        }
 
+        table.readLock();
+        try {
             MysqlSerializer serializer = ctx.getSerializer();
             MysqlChannel channel = ctx.getMysqlChannel();
 
@@ -306,7 +306,7 @@ public class ConnectProcessor {
             }
 
         } finally {
-            db.readUnlock();
+            table.readUnlock();
         }
         ctx.getState().setEof();
     }
