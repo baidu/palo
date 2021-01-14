@@ -55,7 +55,7 @@ Status FileResultWriter::init(RuntimeState* state) {
     _state = state;
     _init_profile();
 
-    RETURN_IF_ERROR(_create_file_writer());
+    RETURN_IF_ERROR(_create_next_file_writer());
     return Status::OK();
 }
 
@@ -69,9 +69,40 @@ void FileResultWriter::_init_profile() {
     _written_data_bytes = ADD_COUNTER(profile, "WrittenDataBytes", TUnit::BYTES);
 }
 
-Status FileResultWriter::_create_file_writer() {
+Status FileResultWriter::_create_success_file() {
+    std::string file_name;
+    RETURN_IF_ERROR(_get_success_file_name(&file_name));
+    RETURN_IF_ERROR(_create_file_writer(file_name));
+    RETURN_IF_ERROR(_close_file_writer(true, true));
+    return Status::OK();
+}
+
+Status FileResultWriter::_get_success_file_name(std::string* file_name) {
+    std::stringstream ss;
+    ss << _file_opts->file_path << _file_opts->success_file_name;
+    *file_name = ss.str();
+    if (_file_opts->is_local_file) {
+        // For local file writer, the file_path is a local dir.
+        // Here we do a simple security verification by checking whether the file exists.
+        // Because the file path is currently arbitrarily specified by the user,
+        // Doris is not responsible for ensuring the correctness of the path.
+        // This is just to prevent overwriting the existing file.
+        if (FileUtils::check_exist(*file_name)) {
+            return Status::InternalError("File already exists: " + *file_name
+                    + ". Host: " + BackendOptions::get_localhost());
+        }
+    }
+        
+    return Status::OK();
+}
+
+Status FileResultWriter::_create_next_file_writer() {
     std::string file_name;
     RETURN_IF_ERROR(_get_next_file_name(&file_name));
+    return _create_file_writer(file_name);
+}
+
+Status FileResultWriter::_create_file_writer(const std::string& file_name) {
     if (_file_opts->is_local_file) {
         _file_writer = new LocalFileWriter(file_name, 0 /* start offset */);
     } else {
@@ -310,7 +341,7 @@ Status FileResultWriter::_create_new_file_if_exceed_size() {
     return Status::OK();
 }
 
-Status FileResultWriter::_close_file_writer(bool done) {
+Status FileResultWriter::_close_file_writer(bool done, bool only_close) {
     if (_parquet_writer != nullptr) {
         _parquet_writer->close();
         delete _parquet_writer;
@@ -324,11 +355,19 @@ Status FileResultWriter::_close_file_writer(bool done) {
         _file_writer = nullptr;
     }
 
+    if (only_close) {
+        return Status::OK();
+    }
+
     if (!done) {
         // not finished, create new file writer for next file
-        RETURN_IF_ERROR(_create_file_writer());
+        RETURN_IF_ERROR(_create_next_file_writer());
     } else {
         // All data is written to file, send statistic result
+        if (_file_opts->success_file_name != "") {
+            // write success file, just need to touch an empty file
+            RETURN_IF_ERROR(_create_success_file()); 
+        }
         RETURN_IF_ERROR(_send_result());
     }
     return Status::OK();

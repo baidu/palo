@@ -39,6 +39,7 @@ struct ResultFileOptions {
     size_t max_file_size_bytes = 1 * 1024 * 1024 * 1024; // 1GB
     std::vector<TNetworkAddress> broker_addresses;
     std::map<std::string, std::string> broker_properties;
+    std::string success_file_name = "";
 
     ResultFileOptions(const TResultFileSinkOptions& t_opt) {
         file_path = t_opt.file_path;
@@ -55,6 +56,9 @@ struct ResultFileOptions {
         }
         if (t_opt.__isset.broker_properties) {
             broker_properties = t_opt.broker_properties;
+        }
+        if (t_opt.__isset.success_file_name) {
+            success_file_name = t_opt.success_file_name;
         }
     }
 };
@@ -85,12 +89,16 @@ private:
     Status _flush_plain_text_outstream(bool eos);
     void _init_profile();
 
-    Status _create_file_writer();
+    Status _create_file_writer(const std::string& file_name);
+    Status _create_next_file_writer();
+    Status _create_success_file();
     // get next export file name
     Status _get_next_file_name(std::string* file_name);
+    Status _get_success_file_name(std::string* file_name);
     std::string _file_format_to_name();
-    // close file writer, and if !done, it will create new writer for next file
-    Status _close_file_writer(bool done);
+    // close file writer, and if !done, it will create new writer for next file.
+    // if only_close is true, this method will just close the file writer and return.
+    Status _close_file_writer(bool done, bool only_close = false);
     // create a new file if current file size exceed limit
     Status _create_new_file_if_exceed_size();
     // send the final statistic result

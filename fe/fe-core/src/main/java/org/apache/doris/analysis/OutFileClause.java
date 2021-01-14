@@ -19,18 +19,20 @@ package org.apache.doris.analysis;
 
 import org.apache.doris.catalog.PrimitiveType;
 import org.apache.doris.common.AnalysisException;
+import org.apache.doris.common.Config;
+import org.apache.doris.common.FeNameFormat;
 import org.apache.doris.common.util.ParseUtil;
 import org.apache.doris.common.util.PrintableMap;
 import org.apache.doris.thrift.TFileFormatType;
 import org.apache.doris.thrift.TResultFileSinkOptions;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.clearspring.analytics.util.Lists;
 import com.google.common.base.Strings;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import java.util.Iterator;
 import java.util.List;
@@ -63,6 +65,7 @@ public class OutFileClause {
     private static final String PROP_COLUMN_SEPARATOR = "column_separator";
     private static final String PROP_LINE_DELIMITER = "line_delimiter";
     private static final String PROP_MAX_FILE_SIZE = "max_file_size";
+    private static final String PROP_SUCCESS_FILE_NAME = "success_file_name";
 
     private static final long DEFAULT_MAX_FILE_SIZE_BYTES = 1 * 1024 * 1024 * 1024; // 1GB
     private static final long MIN_FILE_SIZE_BYTES = 5 * 1024 * 1024L; // 5MB
@@ -81,6 +84,7 @@ public class OutFileClause {
     // True if result is written to local disk.
     // If set to true, the brokerDesc must be null.
     private boolean isLocalOutput = false;
+    private String successFileName = "";
 
     public OutFileClause(String filePath, String format, Map<String, String> properties) {
         this.filePath = filePath;
@@ -137,6 +141,9 @@ public class OutFileClause {
         }
 
         if (filePath.startsWith(LOCAL_FILE_PREFIX)) {
+            if (!Config.enable_outfile_to_local) {
+                throw new AnalysisException("Exporting results to local disk is not allowed.");
+            }
             isLocalOutput = true;
             filePath = filePath.substring(LOCAL_FILE_PREFIX.length() - 1); // leave last '/'
         } else {
@@ -174,6 +181,12 @@ public class OutFileClause {
                 throw new AnalysisException("max file size should between 5MB and 2GB. Given: " + maxFileSizeBytes);
             }
             processedPropKeys.add(PROP_MAX_FILE_SIZE);
+        }
+
+        if (properties.containsKey(PROP_SUCCESS_FILE_NAME)) {
+            successFileName = properties.get(PROP_SUCCESS_FILE_NAME);
+            FeNameFormat.checkCommonName("file name", successFileName);
+            processedPropKeys.add(PROP_SUCCESS_FILE_NAME);
         }
 
         if (processedPropKeys.size() != properties.size()) {
@@ -240,6 +253,9 @@ public class OutFileClause {
             sinkOptions.setBrokerProperties(brokerDesc.getProperties());
             // broker_addresses of sinkOptions will be set in Coordinator.
             // Because we need to choose the nearest broker with the result sink node.
+        }
+        if (!Strings.isNullOrEmpty(successFileName)) {
+            sinkOptions.setSuccessFileName(successFileName);
         }
         return sinkOptions;
     }
