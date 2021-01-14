@@ -239,7 +239,11 @@ public enum ErrorCode {
     ERROR_DYNAMIC_PARTITION_REPLICATION_NUM_FORMAT(5072, new byte[] {'4', '2', '0', '0', '0'},
             "Invalid dynamic partition replication num: %s."),
     ERROR_CREATE_TABLE_LIKE_EMPTY(5073, new byte[] {'4', '2', '0', '0', '0'},
-            "Origin create table stmt is empty");
+            "Origin create table stmt is empty"),
+    ERROR_LDAP_CONFIGURATION_ERR(5080, new byte[] {'4', '2', '0', '0', '0'},
+            "LDAP configuration is incorrect or LDAP admin password is not set."),
+    ERROR_LDAP_USER_NOT_UNIQUE_ERR(5081, new byte[] {'4', '2', '0', '0', '0'},
+            "%s is not unique in LDAP server.");
 
     ErrorCode(int code, byte[] sqlState, String errorMsg) {
         this.code = code;

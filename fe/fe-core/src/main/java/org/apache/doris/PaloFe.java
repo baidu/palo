@@ -20,6 +20,7 @@ package org.apache.doris;
 import org.apache.doris.catalog.Catalog;
 import org.apache.doris.common.CommandLineOptions;
 import org.apache.doris.common.Config;
+import org.apache.doris.common.LdapConfig;
 import org.apache.doris.common.Log4jConfig;
 import org.apache.doris.common.ThreadPoolManager;
 import org.apache.doris.common.Version;
@@ -87,6 +88,11 @@ public class PaloFe {
             // Must init custom config after init config, separately.
             // Because the path of custom config file is defined in fe.conf
             config.initCustom(Config.custom_config_dir + "/fe_custom.conf");
+
+            if (new File(dorisHomeDir + "/conf/ldap.conf").exists()) {
+                LdapConfig ldapConfig = new LdapConfig();
+                ldapConfig.init(dorisHomeDir + "/conf/ldap.conf");
+            }
 
             // check it after Config is initialized, otherwise the config 'check_java_version' won't work.
             if (!JdkUtils.checkJavaVersion()) {
