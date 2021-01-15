@@ -699,6 +699,7 @@ build_js_and_css() {
     cp bootstrap-table.min.css $TP_INSTALL_DIR/webroot/Bootstrap-3.3.7/css
 }
 
+<<<<<<< HEAD
 # aws-c-common
 build_aws_c_common() {
     check_if_source_exist $AWS_C_COMMON_SOURCE
@@ -764,6 +765,18 @@ build_aws_sdk() {
     ${BUILD_SYSTEM} -j$PARALLEL && ${BUILD_SYSTEM} install
 }
 
+# tsan header
+build_tsan_header() {
+    cd $TP_SOURCE_DIR/
+    if [[ ! -f $TSAN_HEADER_FILE ]]; then
+        echo "$TSAN_HEADER_FILE should exist."
+        exit 1
+    fi
+
+    mkdir -p $TP_INSTALL_DIR/include/sanitizer/
+    cp $TSAN_HEADER_FILE $TP_INSTALL_DIR/include/sanitizer/
+}
+
 # See https://github.com/apache/incubator-doris/issues/2910
 # LLVM related codes have already be removed in master, so there is
 # no need to build llvm tool here.
@@ -809,5 +822,6 @@ build_aws_c_io
 build_aws_checksums
 build_aws_c_event_stream
 build_aws_sdk
+build_tsan_header
 
 echo "Finihsed to build all thirdparties"

@@ -300,6 +300,7 @@ BOOTSTRAP_TABLE_CSS_NAME="bootstrap-table.min.css"
 BOOTSTRAP_TABLE_CSS_FILE="bootstrap-table.min.css"
 BOOTSTRAP_TABLE_CSS_MD5SUM="23389d4456da412e36bae30c469a766a"
 
+<<<<<<< HEAD
 # aws-c-common
 AWS_C_COMMON_DOWNLOAD="https://github.com/awslabs/aws-c-common/archive/v0.4.63.tar.gz"
 AWS_C_COMMON_NAME="aws-c-common-0.4.63.tar.gz"
@@ -343,6 +344,11 @@ AWS_SDK_NAME="aws-sdk-cpp-1.8.108.tar.gz"
 AWS_SDK_SOURCE="aws-sdk-cpp-1.8.108"
 AWS_SDK_MD5SUM="76d8855406e7da61f1f996c11c0b93d7"
 
+# tsan_header
+TSAN_HEADER_DOWNLOAD="https://gcc.gnu.org/git/?p=gcc.git;a=blob_plain;f=libsanitizer/include/sanitizer/tsan_interface_atomic.h;hb=refs/heads/releases/gcc-7"
+TSAN_HEADER_NAME="tsan_interface_atomic.h"
+TSAN_HEADER_FILE="tsan_interface_atomic.h"
+TSAN_HEADER_MD5SUM="d72679bea167d6a513d959f5abd149dc"
 
 # all thirdparties which need to be downloaded is set in array TP_ARCHIVES
 export TP_ARCHIVES="LIBEVENT
@@ -393,5 +399,5 @@ AWS_C_CAL
 AWS_C_IO
 AWS_CHECKSUMS
 AWS_S2N
-AWS_SDK"
-
+AWS_SDK
+TSAN_HEADER"
