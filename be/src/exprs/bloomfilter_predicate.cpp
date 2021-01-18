@@ -104,7 +104,7 @@ BooleanVal BloomFilterPredicate::get_boolean_val(ExprContext* ctx, TupleRow* row
     if (_always_true) {
         return BooleanVal(true);
     }
-    void* lhs_slot = ctx->get_value(_children[0], row);
+    const void* lhs_slot = ctx->get_value(_children[0], row);
     if (lhs_slot == NULL) {
         return BooleanVal::null();
     }

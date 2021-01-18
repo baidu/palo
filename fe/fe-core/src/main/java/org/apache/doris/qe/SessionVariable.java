@@ -307,7 +307,7 @@ public class SessionVariable implements Serializable, Writable {
     public boolean deleteWithoutPartition = false;
 
     @VariableMgr.VarAttr(name = ENABLE_RUNTIME_FILTER_MODE)
-    private boolean enableRuntimeFilterMode = false;
+    private boolean enableRuntimeFilterMode = true;
 
     public long getMaxExecMemByte() {
         return maxExecMemByte;

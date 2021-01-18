@@ -391,6 +391,9 @@ public:
             min_pred->add_child(Expr::copy(_pool, _expr_ctx->root()));
             min_pred->add_child(min_literal);
             container->push_back(_pool->add(new ExprContext(min_pred)));
+	    
+            _pool->add(max_pred);
+            _pool->add(min_pred);
             break;
         }
         case RuntimeFilterType::BLOOM_FILTER: {

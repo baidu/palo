@@ -576,6 +576,7 @@ public class HashJoinNode extends PlanNode {
           (distrMode != DistributionMode.NONE) ? (" (" + distrMode.toString() + ")") : "";
         StringBuilder output = new StringBuilder()
                 .append(detailPrefix).append("join op: ").append(joinOp.toString()).append(distrModeStr).append("\n")
+                .append(detailPrefix).append("runtime filter: ").append(isPushDown).append("\n")
                 .append(detailPrefix).append("hash predicates:\n")
                 .append(detailPrefix).append("colocate: ").append(isColocate).append(isColocate ? "" : ", reason: " + colocateReason).append("\n");
 

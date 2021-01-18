@@ -367,7 +367,7 @@ Status OlapScanNode::start_scan(RuntimeState* state) {
     eval_const_conjuncts();
 
     VLOG_CRITICAL << "NormalizeConjuncts";
-    // 2. Convert conjuncts to ColumnValueRange in each column, some conjuncts will
+    // 2. Convert conjuncts to ColumnValueRange in each column, some conjuncts may 
     // set eos = true
     RETURN_IF_ERROR(normalize_conjuncts());
 
@@ -422,7 +422,7 @@ void OlapScanNode::remove_pushed_conjuncts(RuntimeState *state) {
     }
     auto new_direct_conjunct_size = new_conjunct_ctxs.size();
 
-    // dispose hash push down conjunct second
+    // dispose hash join push down conjunct second
     for (int i = _direct_conjunct_size; i < _conjunct_ctxs.size(); ++i) {
         if (std::find(_pushed_conjuncts_index.cbegin(), _pushed_conjuncts_index.cend(), i) == _pushed_conjuncts_index.cend()){
             new_conjunct_ctxs.emplace_back(_conjunct_ctxs[i]);
@@ -710,7 +710,7 @@ Status OlapScanNode::start_scan_thread(RuntimeState* state) {
             // so that scanner can be automatically deconstructed if prepare failed.
             _scanner_pool->add(scanner);
             RETURN_IF_ERROR(
-                    scanner->prepare(*scan_range, scanner_ranges, _olap_filter));
+                    scanner->prepare(*scan_range, scanner_ranges, _olap_filter, _bloom_filters_push_down));
 
             _olap_scanners.push_back(scanner);
             disk_set.insert(scanner->scan_disk());
@@ -737,10 +737,13 @@ Status OlapScanNode::normalize_predicate(ColumnValueRange<T>& range, SlotDescrip
     // 2. Normalize BinaryPredicate , add to ColumnValueRange
     RETURN_IF_ERROR(normalize_noneq_binary_predicate(slot, &range));
 
-    // 3. Check whether range is empty, set _eos
+    // 3. Normalize BloomFilterPredicate, push down by hash join node
+    RETURN_IF_ERROR(normalize_bloom_filter_predicate(slot));
+
+    // 4. Check whether range is empty, set _eos
     if (range.is_empty_value_range()) _eos = true;
 
-    // 4. Add range to Column->ColumnValueRange map
+    // 5. Add range to Column->ColumnValueRange map
     _column_value_ranges[slot->col_name()] = range;
 
     return Status::OK();
@@ -1109,6 +1112,46 @@ Status OlapScanNode::normalize_noneq_binary_predicate(SlotDescriptor* slot,
 
     std::copy(filter_conjuncts_index.cbegin(), filter_conjuncts_index.cend(),
             std::inserter(_pushed_conjuncts_index, _pushed_conjuncts_index.begin()));
+
+    return Status::OK();
+}
+
+Status OlapScanNode::normalize_bloom_filter_predicate(SlotDescriptor* slot) {
+    std::vector<uint32_t> filter_conjuncts_index;
+
+    for (int conj_idx = _direct_conjunct_size; conj_idx < _conjunct_ctxs.size(); ++conj_idx) {
+        Expr* root_expr = _conjunct_ctxs[conj_idx]->root();
+        if (TExprNodeType::BLOOM_PRED != root_expr->node_type()) continue;
+
+        Expr* pred = _conjunct_ctxs[conj_idx]->root();
+        DCHECK(pred->get_num_children() == 1);
+
+        if (Expr::type_without_cast(pred->get_child(0)) != TExprNodeType::SLOT_REF) {
+            continue;
+        }
+        if (pred->get_child(0)->type().type != slot->type().type) {
+            if (!ignore_cast(slot, pred->get_child(0))) {
+                continue;
+            }
+        }
+
+        std::vector<SlotId> slot_ids;
+
+        if (1 == pred->get_child(0)->get_slot_ids(&slot_ids)) {
+            if (slot_ids[0] != slot->id()) {
+                continue;
+            }
+            // only key column of bloom filter will push down to storage engine
+            if (is_key_column(slot->col_name())) {
+                filter_conjuncts_index.emplace_back(conj_idx);
+                _bloom_filters_push_down.emplace_back(slot->col_name(),
+                        (reinterpret_cast<BloomFilterPredicate*>(pred))->get_bloom_filter_func());
+            }
+        }
+    }
+
+    std::copy(filter_conjuncts_index.cbegin(), filter_conjuncts_index.cend(),
+              std::inserter(_pushed_conjuncts_index, _pushed_conjuncts_index.begin()));
 
     return Status::OK();
 }

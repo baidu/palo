@@ -38,14 +38,14 @@ TEST_F(BloomFilterPredicateTest, bloom_filter_func_int_test) {
     int data[data_size];
     for (int i = 0; i < data_size; i++) {
         data[i] = i;
-        func->insert((void*)&data[i]);
+        func->insert((const void*)&data[i]);
     }
     for (int i = 0; i < data_size; i++) {
-        ASSERT_TRUE(func->find((void*)&data[i]));
+        ASSERT_TRUE(func->find((const void*)&data[i]));
     }
     // test not exist val
     int not_exist_val = 0x3355ff;
-    ASSERT_FALSE(func->find((void*)&not_exist_val));
+    ASSERT_FALSE(func->find((const void*)&not_exist_val));
 }
 
 TEST_F(BloomFilterPredicateTest, bloom_filter_func_stringval_test) {
@@ -59,15 +59,15 @@ TEST_F(BloomFilterPredicateTest, bloom_filter_func_stringval_test) {
     for (int i = 0; i < data_size; i++) {
         auto str = obj_pool.add(new std::string(std::to_string(i)));
         data[i] = StringValue(*str);
-        func->insert((void*)&data[i]);
+        func->insert((const void*)&data[i]);
     }
     for (int i = 0; i < data_size; i++) {
-        ASSERT_TRUE(func->find((void*)&data[i]));
+        ASSERT_TRUE(func->find((const void*)&data[i]));
     }
     // test not exist value
     std::string not_exist_str = "0x3355ff";
     StringValue not_exist_val(not_exist_str);
-    ASSERT_FALSE(func->find((void*)&not_exist_val));
+    ASSERT_FALSE(func->find((const void*)&not_exist_val));
 }
 
 } // namespace doris

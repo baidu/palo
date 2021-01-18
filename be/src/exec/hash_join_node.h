@@ -138,6 +138,9 @@ private:
     RuntimeProfile::Counter* _build_buckets_counter; // num buckets in hash table
     RuntimeProfile::Counter* _hash_tbl_load_factor_counter;
 
+    // Check whether enable runtime filter in hash join node
+    void init_runtime_filter_status();
+
     // Supervises ConstructHashTable in a separate thread, and
     // returns its status in the promise parameter.
     void build_side_thread(RuntimeState* state, boost::promise<Status>* status);

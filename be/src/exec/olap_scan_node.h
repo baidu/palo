@@ -26,6 +26,7 @@
 #include "exec/olap_common.h"
 #include "exec/olap_scanner.h"
 #include "exec/scan_node.h"
+#include "exprs/bloomfilter_predicate.h"
 #include "exprs/in_predicate.h"
 #include "runtime/descriptors.h"
 #include "runtime/row_batch_interface.hpp"
@@ -156,6 +157,8 @@ protected:
     template <class T>
     Status normalize_noneq_binary_predicate(SlotDescriptor* slot, ColumnValueRange<T>* range);
 
+    Status normalize_bloom_filter_predicate(SlotDescriptor* slot);
+
     template <typename T>
     static bool normalize_is_null_predicate(Expr* expr, SlotDescriptor* slot,
             const std::string& is_null_str, ColumnValueRange<T>* range);
@@ -207,6 +210,10 @@ private:
     std::vector<std::unique_ptr<TPaloScanRange>> _scan_ranges;
 
     std::vector<TCondition> _olap_filter;
+    // push down bloom filters to storage engine.
+    // 1. std::pair.first :: column name
+    // 2. std::pair.second :: shared_ptr of BloomFilterFuncBase
+    std::vector<std::pair<std::string, std::shared_ptr<BloomFilterFuncBase>>> _bloom_filters_push_down;
 
     // Pool for storing allocated scanner objects.  We don't want to use the
     // runtime pool to ensure that the scanner objects are deleted before this

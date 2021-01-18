@@ -23,6 +23,7 @@
 #include "olap/collect_iterator.h"
 #include "olap/comparison_predicate.h"
 #include "olap/in_list_predicate.h"
+#include "olap/bloom_filter_predicate.h"
 #include "olap/null_predicate.h"
 #include "olap/row.h"
 #include "olap/row_block.h"
@@ -599,6 +600,11 @@ void Reader::_init_conditions_param(const ReaderParams& read_params) {
             }
         }
     }
+
+    // Only key column bloom filter will push down to storage engine
+    for (const auto& filter : read_params.bloom_filters) {
+        _col_predicates.emplace_back(_parse_to_predicate(filter));
+    }
 }
 
 #define COMPARISON_PREDICATE_CONDITION_VALUE(NAME, PREDICATE)                              \
@@ -698,6 +704,14 @@ COMPARISON_PREDICATE_CONDITION_VALUE(lt, LessPredicate)
 COMPARISON_PREDICATE_CONDITION_VALUE(le, LessEqualPredicate)
 COMPARISON_PREDICATE_CONDITION_VALUE(gt, GreaterPredicate)
 COMPARISON_PREDICATE_CONDITION_VALUE(ge, GreaterEqualPredicate)
+
+ColumnPredicate* Reader::_parse_to_predicate(const std::pair<std::string, std::shared_ptr<BloomFilterFuncBase>>& bloom_filter) {
+    int32_t index = _tablet->field_index(bloom_filter.first);
+    if (index < 0) {
+        return nullptr;
+    }
+    return new BloomFilterColumnPredicate(index, bloom_filter.second);
+}
 
 ColumnPredicate* Reader::_parse_to_predicate(const TCondition& condition, bool opposite) const {
     // TODO: not equal and not in predicate is not pushed down

@@ -50,8 +50,8 @@ public:
         _tracker->Consume(_bloom_filter_alloced);
         return st;
     }
-    virtual void insert(void* data) = 0;
-    virtual bool find(void* data) = 0;
+    virtual void insert(const void* data) = 0;
+    virtual bool find(const void* data) = 0;
     /// create a bloom filter function
     static BloomFilterFuncBase* create_bloom_filter(MemTracker* tracker, PrimitiveType type);
 
@@ -69,12 +69,12 @@ public:
 
     ~BloomFilterFunc() = default;
 
-    virtual void insert(void* data) {
+    virtual void insert(const void* data) {
         DCHECK(_bloom_filter != nullptr);
         _bloom_filter->add_bytes((char*)data, sizeof(T));
     }
 
-    virtual bool find(void* data) {
+    virtual bool find(const void* data) {
         DCHECK(_bloom_filter != nullptr);
         return _bloom_filter->test_bytes((char*)data, sizeof(T));
     }
@@ -87,15 +87,15 @@ public:
 
     ~BloomFilterFunc() = default;
 
-    virtual void insert(void* data) {
+    virtual void insert(const void* data) {
         DCHECK(_bloom_filter != nullptr);
-        StringValue* value = reinterpret_cast<StringValue*>(data);
+        const auto* value = reinterpret_cast<const StringValue*>(data);
         _bloom_filter->add_bytes(value->ptr, value->len);
     }
 
-    virtual bool find(void* data) {
+    virtual bool find(const void* data) {
         DCHECK(_bloom_filter != nullptr);
-        StringValue* value = reinterpret_cast<StringValue*>(data);
+        const auto* value = reinterpret_cast<const StringValue*>(data);
         return _bloom_filter->test_bytes(value->ptr, value->len);
     }
 };
@@ -109,6 +109,9 @@ public:
         return pool->add(new BloomFilterPredicate(*this));
     }
     Status prepare(RuntimeState* state, BloomFilterFuncBase* bloomfilterfunc);
+
+    std::shared_ptr<BloomFilterFuncBase> get_bloom_filter_func() { return _filter; }
+
     virtual BooleanVal get_boolean_val(ExprContext* context, TupleRow* row) override;
     virtual Status open(RuntimeState* state, ExprContext* context,
                         FunctionContext::FunctionStateScope scope) override;

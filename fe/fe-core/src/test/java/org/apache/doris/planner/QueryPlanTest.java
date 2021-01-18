@@ -1291,6 +1291,30 @@ public class QueryPlanTest {
     }
 
     @Test
+    public void testEnableRuntimeFilter() throws Exception {
+        connectContext.setDatabase("default_cluster:test");
+        Deencapsulation.setField(connectContext.getSessionVariable(), "enableRuntimeFilterMode", true);
+
+        String queryStr = "explain select * from (select k1 from jointest group by k1)t2, jointest t1 where t1.k1 = t2.k1";
+
+        // BroadcastJoin enable runtime filter
+        String explainString = UtFrameUtils.getSQLPlanOrErrorMsg(connectContext, queryStr);
+        Assert.assertTrue(explainString.contains("runtime filter: true"));
+
+        // TODO: support shuffle join, colocate join, bucket shuffle join enable runtime filter
+        // ShuffleJoin disable runtime filter
+        connectContext.getSessionVariable().setPreferJoinMethod("shuffle");
+        explainString = UtFrameUtils.getSQLPlanOrErrorMsg(connectContext, queryStr);
+        Assert.assertTrue(explainString.contains("runtime filter: false"));
+
+
+        Deencapsulation.setField(connectContext.getSessionVariable(), "enableRuntimeFilterMode", false);
+        connectContext.getSessionVariable().setPreferJoinMethod("broadcast");
+        explainString = UtFrameUtils.getSQLPlanOrErrorMsg(connectContext, queryStr);
+        Assert.assertTrue(explainString.contains("runtime filter: false"));
+    }
+
+    @Test
     public void testEmptyNode() throws Exception {
         connectContext.setDatabase("default_cluster:test");
         String emptyNode = "EMPTYSET";

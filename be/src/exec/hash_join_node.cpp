@@ -79,6 +79,8 @@ Status HashJoinNode::init(const TPlanNode& tnode, RuntimeState* state) {
         _build_unique = false;
     }
 
+    init_runtime_filter_status();
+
     return Status::OK();
 }
 
@@ -168,6 +170,18 @@ Status HashJoinNode::close(RuntimeState* state) {
     return ExecNode::close(state);
 }
 
+void HashJoinNode::init_runtime_filter_status() {
+    // The predicate could not be pushed down when there is Null-safe equal operator.
+    // The in predicate will filter the null value in child[0] while it is needed in the Null-safe equal join.
+    // For example: select * from a join b where a.id<=>b.id
+    // the null value in table a should be return by scan node instead of filtering it by In-predicate.
+    if (std::find(_is_null_safe_eq_join.begin(), _is_null_safe_eq_join.end(), true) !=
+        _is_null_safe_eq_join.end()) {
+        _is_push_down = false;
+    }
+
+}
+
 void HashJoinNode::build_side_thread(RuntimeState* state, boost::promise<Status>* status) {
     status->set_value(construct_hash_table(state));
     // Release the thread token as soon as possible (before the main thread joins
@@ -240,19 +254,6 @@ Status HashJoinNode::open(RuntimeState* state) {
         thread_status.set_value(construct_hash_table(state));
     }
 
-    if (_children[0]->type() == TPlanNodeType::EXCHANGE_NODE &&
-        _children[1]->type() == TPlanNodeType::EXCHANGE_NODE) {
-        _is_push_down = false;
-    }
-
-    // The predicate could not be pushed down when there is Null-safe equal operator.
-    // The in predicate will filter the null value in child[0] while it is needed in the Null-safe equal join.
-    // For example: select * from a join b where a.id<=>b.id
-    // the null value in table a should be return by scan node instead of filtering it by In-predicate.
-    if (std::find(_is_null_safe_eq_join.begin(), _is_null_safe_eq_join.end(), true) !=
-        _is_null_safe_eq_join.end()) {
-        _is_push_down = false;
-    }
 
     if (_is_push_down) {
         // Blocks until ConstructHashTable has returned, after which
@@ -270,45 +271,44 @@ Status HashJoinNode::open(RuntimeState* state) {
             return Status::OK();
         }
 
-        _is_push_down = state->enable_runtime_filter_mode();
-
-        if (_is_push_down) {
-            RuntimeFilter runtime_filter(state, expr_mem_tracker().get(), _pool);
-            for (int i = 0; i < _probe_expr_ctxs.size(); ++i) {
-                if (_hash_tbl->size() <= config::runtime_filter_max_in_num) {
-                    runtime_filter.create_runtime_predicate(RuntimeFilterType::IN_FILTER, i,
-                                                            _probe_expr_ctxs[i], _hash_tbl->size());
-                } else {
-                    runtime_filter.create_runtime_predicate(RuntimeFilterType::BLOOM_FILTER, i,
-                                                            _probe_expr_ctxs[i], _hash_tbl->size());
-                    runtime_filter.create_runtime_predicate(RuntimeFilterType::MINMAX_FILTER, i,
-                                                            _probe_expr_ctxs[i], _hash_tbl->size());
-                }
+        // 1. Create runtime filter for each probe expr
+        RuntimeFilter runtime_filter(state, expr_mem_tracker().get(), _pool);
+        for (int i = 0; i < _probe_expr_ctxs.size(); ++i) {
+            if (_hash_tbl->size() <= config::runtime_filter_max_in_num) {
+                runtime_filter.create_runtime_predicate(RuntimeFilterType::IN_FILTER, i,
+                                                        _probe_expr_ctxs[i], _hash_tbl->size());
+            } else {
+                runtime_filter.create_runtime_predicate(RuntimeFilterType::BLOOM_FILTER, i,
+                                                        _probe_expr_ctxs[i], _hash_tbl->size());
+                runtime_filter.create_runtime_predicate(RuntimeFilterType::MINMAX_FILTER, i,
+                                                        _probe_expr_ctxs[i], _hash_tbl->size());
             }
-
-            {
-                SCOPED_TIMER(_push_compute_timer);
-                HashTable::Iterator iter = _hash_tbl->begin();
-
-                while (iter.has_next()) {
-                    TupleRow* row = iter.get_row();
-
-                    for (int i = 0; i < _build_expr_ctxs.size(); ++i) {
-                        //TODO may be we could use the the result from hash table
-                        // to reduce caculate build_expr_ctxs
-                        void* val = _build_expr_ctxs[i]->get_value(row);
-                        runtime_filter.insert(i, val);
-                    }
-
-                    SCOPED_TIMER(_build_timer);
-                    iter.next<false>();
-                }
-            }
-
-            SCOPED_TIMER(_push_down_timer);
-            runtime_filter.get_push_expr_ctxs(&_push_down_expr_ctxs);
-            push_down_predicate(state, &_push_down_expr_ctxs);
         }
+
+        // 2. Insert value to Runtime Filter
+        {
+            SCOPED_TIMER(_push_compute_timer);
+            HashTable::Iterator iter = _hash_tbl->begin();
+
+            while (iter.has_next()) {
+                TupleRow* row = iter.get_row();
+
+                for (int i = 0; i < _build_expr_ctxs.size(); ++i) {
+                    //TODO may be we could use the the result from hash table
+                    // to reduce caculate build_expr_ctxs
+                    void* val = _build_expr_ctxs[i]->get_value(row);
+                    runtime_filter.insert(i, val);
+                }
+
+                SCOPED_TIMER(_build_timer);
+                iter.next<false>();
+            }
+        }
+
+        // 3. Push down runtime filter to child
+        SCOPED_TIMER(_push_down_timer);
+        runtime_filter.get_push_expr_ctxs(&_push_down_expr_ctxs);
+        push_down_predicate(state, &_push_down_expr_ctxs);
 
         // Open the probe-side child so that it may perform any initialisation in parallel.
         // Don't exit even if we see an error, we still need to wait for the build thread

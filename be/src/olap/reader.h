@@ -30,6 +30,7 @@
 #include <utility>
 #include <vector>
 
+#include "exprs/bloomfilter_predicate.h"
 #include "olap/column_predicate.h"
 #include "olap/delete_handler.h"
 #include "olap/olap_cond.h"
@@ -67,7 +68,10 @@ struct ReaderParams {
     std::string end_range;
     std::vector<OlapTuple> start_key;
     std::vector<OlapTuple> end_key;
+
     std::vector<TCondition> conditions;
+    std::vector<std::pair<string, std::shared_ptr<BloomFilterFuncBase>>> bloom_filters;
+
     // The ColumnData will be set when using Merger, eg Cumulative, BE.
     std::vector<RowsetReaderSharedPtr> rs_readers;
     std::vector<uint32_t> return_columns;
@@ -138,6 +142,8 @@ private:
     ColumnPredicate* _new_ge_pred(const TabletColumn& column, int index, const std::string& cond, bool opposite) const;
 
     ColumnPredicate* _parse_to_predicate(const TCondition& condition, bool opposite = false) const;
+
+    ColumnPredicate* _parse_to_predicate(const std::pair<std::string, std::shared_ptr<BloomFilterFuncBase>>& bloom_filter);
 
     OLAPStatus _init_delete_condition(const ReaderParams& read_params);
 
