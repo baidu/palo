@@ -300,7 +300,6 @@ BOOTSTRAP_TABLE_CSS_NAME="bootstrap-table.min.css"
 BOOTSTRAP_TABLE_CSS_FILE="bootstrap-table.min.css"
 BOOTSTRAP_TABLE_CSS_MD5SUM="23389d4456da412e36bae30c469a766a"
 
-<<<<<<< HEAD
 # aws-c-common
 AWS_C_COMMON_DOWNLOAD="https://github.com/awslabs/aws-c-common/archive/v0.4.63.tar.gz"
 AWS_C_COMMON_NAME="aws-c-common-0.4.63.tar.gz"
@@ -330,7 +329,6 @@ AWS_S2N_DOWNLOAD="https://github.com/awslabs/s2n/archive/v0.10.0.tar.gz"
 AWS_S2N_NAME="s2n-0.10.0.tar.gz"
 AWS_S2N_SOURCE="s2n-0.10.0"
 AWS_S2N_MD5SUM="9b3b39803b7090c2bd937f9cc73bc03f"
-#aws-c-cal
 
 # aws-c-cal
 AWS_C_CAL_DOWNLOAD="https://github.com/awslabs/aws-c-cal/archive/v0.4.5.tar.gz"

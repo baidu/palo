@@ -1343,4 +1343,10 @@ public class Config extends ConfigBase {
      */
     @ConfField
     public static boolean enable_bdbje_debug_mode = false;
+
+    /**
+     * This config is used to try skip broker when access bos or other cloud storage via broker
+     */
+    @ConfField(mutable = true, masterOnly = true)
+    public static boolean enable_access_file_without_broker = false;
 }
