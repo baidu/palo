@@ -1440,10 +1440,6 @@ public class SelectStmt extends QueryStmt {
             if (groupingExprs != null) {
                 rewriter.rewriteList(groupingExprs, analyzer);
             }
-            List<Expr> oriGroupingExprs = groupByClause.getOriGroupingExprs();
-            if (oriGroupingExprs != null) {
-                rewriter.rewriteList(oriGroupingExprs, analyzer);
-            }
         }
         if (orderByElements != null) {
             for (OrderByElement orderByElem : orderByElements) {
@@ -1508,13 +1504,6 @@ public class SelectStmt extends QueryStmt {
                     exprMap.put(expr.getId().toString(), expr);
                 }
             }
-            List<Expr> oriGroupingExprs = groupByClause.getOriGroupingExprs();
-            if (oriGroupingExprs != null) {
-                for (Expr expr : oriGroupingExprs) {
-                    registerExprId(expr);
-                    exprMap.put(expr.getId().toString(), expr);
-                }
-            }
         }
         if (orderByElements != null) {
             for (OrderByElement orderByElem : orderByElements) {
@@ -1571,14 +1560,6 @@ public class SelectStmt extends QueryStmt {
                 }
                 groupByClause.setGroupingExpr(newGroupingExpr);
 
-            }
-            List<Expr> oriGroupingExprs = groupByClause.getOriGroupingExprs();
-            if (oriGroupingExprs != null) {
-                ArrayList<Expr> newOriGroupingExprs = new ArrayList<>();
-                for (Expr expr : oriGroupingExprs) {
-                    newOriGroupingExprs.add(rewrittenExprMap.get(expr.getId().toString()));
-                }
-                groupByClause.setOriGroupingExprs(newOriGroupingExprs);
             }
         }
         if (orderByElements != null) {

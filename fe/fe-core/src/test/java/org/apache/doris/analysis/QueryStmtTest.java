@@ -187,7 +187,7 @@ public class QueryStmtTest {
         stmt = (QueryStmt) UtFrameUtils.parseAndAnalyzeStmt(sql, ctx);
         exprsMap.clear();
         stmt.collectExprs(exprsMap);
-        Assert.assertEquals(8, exprsMap.size());
+        Assert.assertEquals(6, exprsMap.size());
     }
 
     @Test
