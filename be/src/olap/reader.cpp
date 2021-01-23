@@ -716,11 +716,11 @@ ColumnPredicate* Reader::_parse_to_predicate(const std::pair<std::string, std::s
 }
 
 ColumnPredicate* Reader::_parse_to_predicate(const TCondition& condition, bool opposite) const {
-    // TODO: not equal and not in predicate is not pushed down
     int32_t index = _tablet->field_index(condition.column_name);
     if (index < 0) {
         return nullptr;
     }
+
     const TabletColumn& column = _tablet->tablet_schema().column(index);
     ColumnPredicate* predicate = nullptr;
 
@@ -891,12 +891,11 @@ ColumnPredicate* Reader::_parse_to_predicate(const TCondition& condition, bool o
         }
         // OLAP_FIELD_TYPE_BOOL is not valid in this case.
         default:
-            break;
+           break;
         }
     } else if (boost::to_lower_copy(condition.condition_op) == "is") {
         predicate = new NullPredicate(index, boost::to_lower_copy(condition.condition_values[0]) == "null", opposite);
     }
-
     return predicate;
 }
 

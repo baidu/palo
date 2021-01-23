@@ -155,6 +155,9 @@ protected:
     Status normalize_in_and_eq_predicate(SlotDescriptor* slot, ColumnValueRange<T>* range);
 
     template <class T>
+    Status normalize_not_in_and_not_eq_predicate(SlotDescriptor* slot, ColumnValueRange<T>* range);
+
+    template <class T>
     Status normalize_noneq_binary_predicate(SlotDescriptor* slot, ColumnValueRange<T>* range);
 
     Status normalize_bloom_filter_predicate(SlotDescriptor* slot);
@@ -181,8 +184,9 @@ private:
 
     std::pair<bool, void*> should_push_down_eq_predicate(SlotDescriptor* slot, Expr* pred, int conj_idx, int child_idx);
 
-    template <typename T>
-    static Status insert_value_to_range(ColumnValueRange<T>& range, PrimitiveType type, void* value);
+    template <typename T, typename ChangeFixedValueRangeFunc>
+    static Status change_fixed_value_range(ColumnValueRange <T> &range, PrimitiveType type, void *value,
+                                               const ChangeFixedValueRangeFunc& func);
 
     friend class OlapScanner;
 
