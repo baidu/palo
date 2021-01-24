@@ -145,7 +145,7 @@ public class HashJoinNode extends PlanNode {
         super.init(analyzer);
         assignedConjuncts = analyzer.getAssignedConjuncts();
         computeStats(analyzer);
-        //assignedConjuncts = analyzr.getAssignedConjuncts();
+        replaceOutputSmapForOuterJoin();
 
         ExprSubstitutionMap combinedChildSmap = getCombinedChildWithoutTupleIsNullSmap();
         List<Expr> newEqJoinConjuncts =
@@ -307,6 +307,30 @@ public class HashJoinNode extends PlanNode {
         }
         Preconditions.checkState(result >= 0);
         return result;
+    }
+
+    private void replaceOutputSmapForOuterJoin() {
+        if (joinOp.isOuterJoin()) {
+            List<Expr> lhs = new ArrayList<>();
+            List<Expr> rhs = new ArrayList<>();
+
+            for (int i = 0; i < outputSmap.size(); i++) {
+                Expr expr = outputSmap.getLhs().get(i);
+                boolean isInNullableTuple = false;
+                for (TupleId tupleId : nullableTupleIds) {
+                    if (expr.isBound(tupleId)) {
+                        isInNullableTuple = true;
+                        break;
+                    }
+                }
+
+                if (!isInNullableTuple) {
+                    lhs.add(outputSmap.getLhs().get(i));
+                    rhs.add(outputSmap.getRhs().get(i));
+                }
+            }
+            outputSmap = new ExprSubstitutionMap(lhs, rhs);
+        }
     }
 
     @Override
