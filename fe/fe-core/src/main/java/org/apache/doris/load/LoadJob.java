@@ -1010,7 +1010,6 @@ public class LoadJob implements Writable {
         if (this.id == job.id) {
             return true;
         }
-
         return false;
     }
 
