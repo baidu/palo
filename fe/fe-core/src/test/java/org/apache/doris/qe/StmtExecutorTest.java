@@ -21,16 +21,23 @@ import org.apache.doris.analysis.AccessTestUtil;
 import org.apache.doris.analysis.Analyzer;
 import org.apache.doris.analysis.DdlStmt;
 import org.apache.doris.analysis.Expr;
+import org.apache.doris.analysis.InsertStmt;
 import org.apache.doris.analysis.KillStmt;
 import org.apache.doris.analysis.QueryStmt;
 import org.apache.doris.analysis.RedirectStatus;
+import org.apache.doris.analysis.SelectStmt;
 import org.apache.doris.analysis.SetStmt;
 import org.apache.doris.analysis.ShowAuthorStmt;
 import org.apache.doris.analysis.ShowStmt;
 import org.apache.doris.analysis.SqlParser;
 import org.apache.doris.analysis.StatementBase;
 import org.apache.doris.analysis.UseStmt;
+import org.apache.doris.analysis.ValueList;
 import org.apache.doris.catalog.Catalog;
+import org.apache.doris.catalog.Column;
+import org.apache.doris.catalog.Database;
+import org.apache.doris.catalog.OlapTable;
+import org.apache.doris.catalog.Table;
 import org.apache.doris.common.DdlException;
 import org.apache.doris.common.jmockit.Deencapsulation;
 import org.apache.doris.common.util.RuntimeProfile;
@@ -38,11 +45,25 @@ import org.apache.doris.metric.MetricRepo;
 import org.apache.doris.mysql.MysqlChannel;
 import org.apache.doris.mysql.MysqlSerializer;
 import org.apache.doris.planner.Planner;
+import org.apache.doris.planner.StreamLoadPlanner;
+import org.apache.doris.proto.PExecPlanFragmentResult;
+import org.apache.doris.proto.PStatus;
 import org.apache.doris.rewrite.ExprRewriter;
+import org.apache.doris.rpc.BackendServiceProxy;
 import org.apache.doris.service.FrontendOptions;
+import org.apache.doris.system.Backend;
+import org.apache.doris.system.SystemInfoService;
+import org.apache.doris.thrift.TExecPlanFragmentParams;
+import org.apache.doris.thrift.TNetworkAddress;
+import org.apache.doris.thrift.TPlanFragmentExecParams;
 import org.apache.doris.thrift.TQueryOptions;
+import org.apache.doris.thrift.TTxnParams;
 import org.apache.doris.thrift.TUniqueId;
+import org.apache.doris.transaction.GlobalTransactionMgr;
+import org.apache.doris.transaction.TransactionEntry;
+import org.apache.doris.transaction.TransactionState;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 
 import org.glassfish.jersey.internal.guava.Sets;
@@ -55,18 +76,26 @@ import java.io.IOException;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.SortedMap;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import java_cup.runtime.Symbol;
 import mockit.Expectations;
 import mockit.Mocked;
 
+import static org.apache.doris.catalog.Table.TableType.OLAP;
+
 public class StmtExecutorTest {
     private ConnectContext ctx;
     private QueryState state;
     private ConnectScheduler scheduler;
+    private MysqlChannel channel = null;
 
     @Mocked
     SocketChannel socketChannel;
@@ -92,7 +121,7 @@ public class StmtExecutorTest {
         MysqlSerializer serializer = MysqlSerializer.newInstance();
         Catalog catalog = AccessTestUtil.fetchAdminCatalog();
 
-        MysqlChannel channel = new MysqlChannel(socketChannel);
+        channel = new MysqlChannel(socketChannel);
         new Expectations(channel) {
             {
                 channel.sendOnePacket((ByteBuffer) any);
@@ -731,5 +760,239 @@ public class StmtExecutorTest {
 
         Assert.assertEquals(QueryState.MysqlStateType.ERR, state.getStateType());
     }
+
+    @Test
+    public void testInsert(@Mocked InsertStmt insertStmt,
+                           @Mocked Catalog catalog,
+                           @Mocked SelectStmt queryStmt,
+                           @Mocked Expr expr,
+                           @Mocked Database db) throws Exception {
+
+        TExecPlanFragmentParams execPlanFragmentParams = new TExecPlanFragmentParams();
+        execPlanFragmentParams.params = new TPlanFragmentExecParams();
+
+        ArrayList<Expr> exprs = new ArrayList<>();
+        exprs.add(expr);
+        ValueList values = new ValueList(exprs);
+
+
+        ConnectContext localCtx = new ConnectContext();
+
+        TransactionEntry txnEntry = new TransactionEntry();
+        localCtx.setTxnEntry(txnEntry);
+
+        TTxnParams txnParams = new TTxnParams();
+        txnParams.setFragmentInstanceId(new TUniqueId());
+        txnParams.getFragmentInstanceId().setHi(11111).setLo(2222);
+        txnParams.setNeedTxn(true);
+        txnParams.setTxnId(111);
+        txnParams.setDb("db1");
+        txnParams.setTbl("tbl1");
+        txnEntry.setTxnConf(txnParams);
+        txnEntry.setBackend(new Backend());
+
+        Table table = new Table(OLAP);
+        List<Column> cols = new ArrayList();
+        cols.add(new Column());
+        table.setNewFullSchema(cols);
+        txnEntry.setTable(table);
+
+        new Expectations(ctx) {
+            {
+                insertStmt.analyze((Analyzer) any);
+                minTimes = 0;
+
+                insertStmt.getRedirectStatus();
+                minTimes = 0;
+                result = RedirectStatus.NO_FORWARD;
+
+                Catalog.getCurrentCatalog();
+                minTimes = 0;
+                result = catalog;
+
+                ConnectContext.get();
+                minTimes = 0;
+                result = localCtx;
+
+                insertStmt.getQueryStmt();
+                minTimes = 0;
+                result = queryStmt;
+
+                insertStmt.getDb();
+                minTimes = 0;
+                result = "db1";
+
+                insertStmt.getTbl();
+                minTimes = 0;
+                result = "tbl1";
+
+                expr.getResultValue();
+                minTimes = 0;
+                result = "data";
+
+                queryStmt.getValueList();
+                minTimes = 0;
+                result = values;
+
+            }
+        };
+
+        StmtExecutor stmtExecutor = new StmtExecutor(localCtx, "insert into Table");
+        Deencapsulation.setField(stmtExecutor, "parsedStmt", insertStmt);
+        Deencapsulation.setField(localCtx, "mysqlChannel", channel);
+
+        stmtExecutor.execute();
+        Assert.assertEquals(QueryState.MysqlStateType.OK, state.getStateType());
+
+    }
+
+    @Test
+    public void testInsertFail(@Mocked InsertStmt insertStmt,
+                               @Mocked Catalog catalog,
+                               @Mocked SelectStmt queryStmt,
+                               @Mocked Expr expr,
+                               @Mocked GlobalTransactionMgr txnMgr,
+                               @Mocked MasterTxnExecutor masterTxnExecutor,
+                               @Mocked SessionVariable sessionVariable,
+                               @Mocked StreamLoadPlanner streamLoadPlanner,
+                               @Mocked Database db,
+                               @Mocked SystemInfoService systemInfoService,
+                               @Mocked Backend backend,
+                               @Mocked BackendServiceProxy backendServiceProxy,
+                               @Mocked Future<PExecPlanFragmentResult> execFuture) throws Exception {
+
+        TExecPlanFragmentParams execPlanFragmentParams = new TExecPlanFragmentParams();
+        execPlanFragmentParams.params = new TPlanFragmentExecParams();
+
+        ArrayList<Expr> exprs = new ArrayList<>();
+        exprs.add(expr);
+        ValueList values = new ValueList(exprs);
+
+        TransactionEntry txnEntry = new TransactionEntry();
+        TTxnParams txnParams = new TTxnParams();
+        txnParams.setFragmentInstanceId(new TUniqueId());
+        txnParams.getFragmentInstanceId().setHi(11111).setLo(2222);
+        txnEntry.setTxnConf(txnParams);
+        txnEntry.setBackend(new Backend());
+
+        List<Long> beIds = new ArrayList<>();
+        beIds.add(1L);
+
+        PExecPlanFragmentResult execPlanFragmentResult = new PExecPlanFragmentResult();
+        execPlanFragmentResult.status = new PStatus();
+        execPlanFragmentResult.status.status_code = 1;
+
+        Map<Long, Backend> map = new HashMap<>();
+        map.put(1L, backend);
+        ImmutableMap<Long, Backend> idMap = ImmutableMap.copyOf(map);
+
+        new Expectations() {
+            {
+                insertStmt.analyze((Analyzer) any);
+                minTimes = 0;
+
+                insertStmt.getRedirectStatus();
+                minTimes = 0;
+                result = RedirectStatus.NO_FORWARD;
+
+                streamLoadPlanner.plan((TUniqueId) any);
+                minTimes = 0;
+                result = execPlanFragmentParams;
+
+                Catalog.getCurrentCatalog();
+                minTimes = 0;
+                result = catalog;
+
+                catalog.getDb(anyString);
+                minTimes = 0;
+                result = db;
+
+                db.getTable(anyString);
+                minTimes = 0;
+                result = new OlapTable();
+
+                catalog.isMaster();
+                minTimes = 0;
+                result = true;
+
+                Catalog.getCurrentGlobalTransactionMgr();
+                minTimes = 0;
+                result = txnMgr;
+
+                Catalog.getCurrentSystemInfo();
+                minTimes = 0;
+                result = systemInfoService;
+
+                systemInfoService.seqChooseBackendIds(anyInt, anyBoolean, anyBoolean, anyString);
+                minTimes = 0;
+                result = beIds;
+
+                BackendServiceProxy.getInstance();
+                minTimes = 0;
+                result = backendServiceProxy;
+
+                backendServiceProxy.execPlanFragmentAsync((TNetworkAddress) any, (TExecPlanFragmentParams) any);
+                minTimes = 0;
+                result = execFuture;
+
+                execFuture.get(anyLong, (TimeUnit) any);
+                minTimes = 0;
+                result = execPlanFragmentResult;
+
+                systemInfoService.getIdToBackend();
+                minTimes = 0;
+                result = idMap;
+
+                txnMgr.beginTransaction(anyLong, (List<Long>) any, anyString,
+                        (TransactionState.TxnCoordinator) any, (TransactionState.LoadJobSourceType) any, anyLong);
+                minTimes = 0;
+                result = 100L;
+
+                insertStmt.getQueryStmt();
+                minTimes = 0;
+                result = queryStmt;
+
+                expr.getResultValue();
+                minTimes = 0;
+                result = "data";
+
+                queryStmt.getValueList();
+                minTimes = 0;
+                result = values;
+
+                ConnectContext.get();
+                minTimes = 0;
+                result = ctx;
+
+                ctx.getSessionVariable();
+                minTimes = 0;
+                result = sessionVariable;
+
+                sessionVariable.getQueryTimeoutS();
+                minTimes = 0;
+                result = 1000;
+
+                ctx.isTxnModel();
+                minTimes = 0;
+                result = true;
+
+                ctx.isTxnIniting();
+                minTimes = 0;
+                result = true;
+
+                ctx.getTxnEntry();
+                minTimes = 0;
+                result = txnEntry;
+            }
+        };
+
+        StmtExecutor stmtExecutor = new StmtExecutor(ctx, "");
+        Deencapsulation.setField(stmtExecutor, "parsedStmt", insertStmt);
+
+        stmtExecutor.execute();
+        Assert.assertEquals(QueryState.MysqlStateType.ERR, state.getStateType());
+
+    }
+
 }
 

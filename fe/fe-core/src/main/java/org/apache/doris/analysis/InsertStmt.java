@@ -175,6 +175,10 @@ public class InsertStmt extends DdlStmt {
         return this.indexIdToSchemaHash;
     }
 
+    public void setTransactionId(long transactionId) {
+        this.transactionId = transactionId;
+    }
+
     public long getTransactionId() {
         return this.transactionId;
     }
@@ -185,6 +189,10 @@ public class InsertStmt extends DdlStmt {
 
     public String getDb() {
         return tblName.getDb();
+    }
+
+    public String getTbl() {
+        return tblName.getTbl();
     }
 
     public void getTables(Analyzer analyzer, Map<Long, Table> tableMap, Set<String> parentViewNameSet) throws AnalysisException {
@@ -298,10 +306,10 @@ public class InsertStmt extends DdlStmt {
 
         // create label and begin transaction
         long timeoutSecond = ConnectContext.get().getSessionVariable().getQueryTimeoutS();
+        if (Strings.isNullOrEmpty(label)) {
+            label = "insert_" + DebugUtil.printId(analyzer.getContext().queryId());
+        }
         if (!isExplain() && !isTransactionBegin) {
-            if (Strings.isNullOrEmpty(label)) {
-                label = "insert_" + DebugUtil.printId(analyzer.getContext().queryId());
-            }
 
             if (targetTable instanceof OlapTable) {
                 LoadJobSourceType sourceType = LoadJobSourceType.INSERT_STREAMING;
@@ -639,6 +647,11 @@ public class InsertStmt extends DdlStmt {
             Expr expr = row.get(i);
             Column col = targetColumns.get(i);
 
+            if (!col.isAllowNull() && expr instanceof NullLiteral) {
+                throw new AnalysisException("Column cat not be null, rowIdx = " +
+                        rowIdx + ", column = " + targetColumns.get(i).getName());
+            }
+
             // TargetTable's hll column must be hll_hash's result
             if (col.getType().equals(Type.HLL)) {
                 checkHllCompatibility(col, expr);
@@ -720,7 +733,9 @@ public class InsertStmt extends DdlStmt {
         if (col.getDataType().equals(expr.getType().getPrimitiveType())) {
             return expr;
         }
-        return expr.castTo(col.getType());
+        Expr newExpr = expr.castTo(col.getType());
+        newExpr.checkValueValid();
+        return newExpr;
     }
 
     public void prepareExpressions() throws UserException {

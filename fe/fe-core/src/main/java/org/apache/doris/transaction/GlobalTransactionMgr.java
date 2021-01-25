@@ -48,6 +48,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /**
  * Transaction Manager
@@ -466,5 +467,29 @@ public class GlobalTransactionMgr implements Writable {
     public void updateDatabaseUsedQuotaData(long dbId, long usedQuotaDataBytes) throws AnalysisException {
         DatabaseTransactionMgr dbTransactionMgr = getDatabaseTransactionMgr(dbId);
         dbTransactionMgr.updateDatabaseUsedQuotaData(usedQuotaDataBytes);
+    }
+
+    public TransactionStatus getWaitingTxnStatus(long dbId, long txnId) throws AnalysisException, TimeoutException {
+        int commitTimeoutSec = Config.commit_timeout_second;
+        for (int i = 0; i < commitTimeoutSec; ++i) {
+            Database db = Catalog.getCurrentCatalog().getDb(dbId);
+            if (db == null) {
+                throw new AnalysisException("invalid db id: " + dbId);
+            }
+            TransactionState txnState = Catalog.getCurrentGlobalTransactionMgr().
+                    getTransactionState(dbId, txnId);
+            if (txnState == null) {
+                throw new AnalysisException("txn does not exist: " + txnId);
+            }
+            if (txnState.getTransactionStatus().isFinalStatus()) {
+                return txnState.getTransactionStatus();
+            }
+            try {
+                Thread.sleep(1000L);
+            } catch (InterruptedException e) {
+                LOG.info("commit sleep exception.", e);
+            }
+        }
+        throw new TimeoutException("Operation is timeout");
     }
 }

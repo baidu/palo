@@ -73,8 +73,8 @@ import org.apache.doris.thrift.TGetDbsResult;
 import org.apache.doris.thrift.TGetTablesParams;
 import org.apache.doris.thrift.TGetTablesResult;
 import org.apache.doris.thrift.TIsMethodSupportedRequest;
-import org.apache.doris.thrift.TListTableStatusResult;
 import org.apache.doris.thrift.TListPrivilegesResult;
+import org.apache.doris.thrift.TListTableStatusResult;
 import org.apache.doris.thrift.TLoadCheckRequest;
 import org.apache.doris.thrift.TLoadTxnBeginRequest;
 import org.apache.doris.thrift.TLoadTxnBeginResult;
@@ -90,6 +90,8 @@ import org.apache.doris.thrift.TMiniLoadBeginResult;
 import org.apache.doris.thrift.TMiniLoadEtlStatusResult;
 import org.apache.doris.thrift.TMiniLoadRequest;
 import org.apache.doris.thrift.TNetworkAddress;
+import org.apache.doris.thrift.TPrivilegeStatus;
+import org.apache.doris.thrift.TReportExecStatusParams;
 import org.apache.doris.thrift.TReportExecStatusParams;
 import org.apache.doris.thrift.TReportExecStatusResult;
 import org.apache.doris.thrift.TReportRequest;
@@ -101,14 +103,16 @@ import org.apache.doris.thrift.TStatusCode;
 import org.apache.doris.thrift.TStreamLoadPutRequest;
 import org.apache.doris.thrift.TStreamLoadPutResult;
 import org.apache.doris.thrift.TTableStatus;
-import org.apache.doris.thrift.TPrivilegeStatus;
 import org.apache.doris.thrift.TUniqueId;
 import org.apache.doris.thrift.TUpdateExportTaskStatusRequest;
 import org.apache.doris.thrift.TUpdateMiniEtlTaskStatusRequest;
+import org.apache.doris.thrift.TWaitingTxnStatusRequest;
+import org.apache.doris.thrift.TWaitingTxnStatusResult;
 import org.apache.doris.transaction.TabletCommitInfo;
 import org.apache.doris.transaction.TransactionState;
 import org.apache.doris.transaction.TransactionState.TxnCoordinator;
 import org.apache.doris.transaction.TransactionState.TxnSourceType;
+import org.apache.doris.transaction.TransactionStatus;
 import org.apache.doris.transaction.TxnCommitAttachment;
 
 import com.google.common.base.Joiner;
@@ -127,7 +131,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.apache.doris.thrift.TStatusCode.NOT_IMPLEMENTED_ERROR;
+import java.util.concurrent.TimeoutException;
 
 // Frontend service used to serve all request for this frontend through
 // thrift protocol
@@ -631,7 +635,7 @@ public class FrontendServiceImpl implements FrontendService.Iface {
             case "STREAMING_MINI_LOAD":
                 break;
             default:
-                status.setStatusCode(NOT_IMPLEMENTED_ERROR);
+                status.setStatusCode(TStatusCode.NOT_IMPLEMENTED_ERROR);
                 break;
         }
         return result;
@@ -655,6 +659,22 @@ public class FrontendServiceImpl implements FrontendService.Iface {
         TMasterOpResult result = processor.proxyExecute(params);
         ConnectContext.remove();
         return result;
+    }
+
+    private void checkAuthCodeUuid(String dbName, long txnId, String authCodeUuid) throws AuthenticationException {
+        Database db = Catalog.getCurrentCatalog().getDb(dbName);
+        if (db == null) {
+            throw new AuthenticationException("invalid db name: " + dbName);
+        }
+        TransactionState transactionState = Catalog.getCurrentGlobalTransactionMgr().
+                getTransactionState(db.getId(), txnId);
+        if (transactionState == null) {
+            throw new AuthenticationException("invalid transactionState: " + txnId);
+        }
+        if (!authCodeUuid.equals(transactionState.getAuthCode())) {
+            throw new AuthenticationException(
+                    "Access denied; you need (at least one of) the LOAD privilege(s) for this operation");
+        }
     }
 
     private void checkPasswordAndPrivs(String cluster, String user, String passwd, String db, String tbl,
@@ -712,7 +732,8 @@ public class FrontendServiceImpl implements FrontendService.Iface {
         TStatus status = new TStatus(TStatusCode.OK);
         result.setStatus(status);
         try {
-            result.setTxnId(loadTxnBeginImpl(request, clientAddr));
+            TLoadTxnBeginResult tmpRes = loadTxnBeginImpl(request, clientAddr);
+            result.setTxnId(tmpRes.getTxnId()).setDbId(tmpRes.getDbId());
         } catch (DuplicatedRequestException e) {
             // this is a duplicate request, just return previous txn id
             LOG.warn("duplicate request for stream load. request id: {}, txn: {}", e.getDuplicatedRequestId(), e.getTxnId());
@@ -734,14 +755,16 @@ public class FrontendServiceImpl implements FrontendService.Iface {
         return result;
     }
 
-    private long loadTxnBeginImpl(TLoadTxnBeginRequest request, String clientIp) throws UserException {
+    private TLoadTxnBeginResult loadTxnBeginImpl(TLoadTxnBeginRequest request, String clientIp) throws UserException {
         String cluster = request.getCluster();
         if (Strings.isNullOrEmpty(cluster)) {
             cluster = SystemInfoService.DEFAULT_CLUSTER;
         }
 
-        checkPasswordAndPrivs(cluster, request.getUser(), request.getPasswd(), request.getDb(),
-                              request.getTbl(), request.getUserIp(), PrivPredicate.LOAD);
+        if (Strings.isNullOrEmpty(request.getAuthCodeUuid())) {
+            checkPasswordAndPrivs(cluster, request.getUser(), request.getPasswd(), request.getDb(),
+                    request.getTbl(), request.getUserIp(), PrivPredicate.LOAD);
+        }
 
         // check label
         if (Strings.isNullOrEmpty(request.getLabel())) {
@@ -763,10 +786,17 @@ public class FrontendServiceImpl implements FrontendService.Iface {
         // begin
         long timeoutSecond = request.isSetTimeout() ? request.getTimeout() : Config.stream_load_default_timeout_second;
         MetricRepo.COUNTER_LOAD_ADD.increase(1L);
-        return Catalog.getCurrentGlobalTransactionMgr().beginTransaction(
+        long txnId = Catalog.getCurrentGlobalTransactionMgr().beginTransaction(
                 db.getId(), Lists.newArrayList(table.getId()), request.getLabel(), request.getRequestId(),
                 new TxnCoordinator(TxnSourceType.BE, clientIp),
                 TransactionState.LoadJobSourceType.BACKEND_STREAMING, -1, timeoutSecond);
+        if (!Strings.isNullOrEmpty(request.getAuthCodeUuid())) {
+            Catalog.getCurrentGlobalTransactionMgr().getTransactionState(db.getId(), txnId)
+                    .setAuthCode(request.getAuthCodeUuid());
+        }
+        TLoadTxnBeginResult result = new TLoadTxnBeginResult();
+        result.setTxnId(txnId).setDbId(db.getId());
+        return result;
     }
 
     @Override
@@ -805,6 +835,8 @@ public class FrontendServiceImpl implements FrontendService.Iface {
 
         if (request.isSetAuthCode()) {
             // TODO(cmy): find a way to check
+        } else if (request.isSetAuthCodeUuid()) {
+            checkAuthCodeUuid(request.getDb(), request.getTxnId(), request.getAuthCodeUuid());
         } else {
             checkPasswordAndPrivs(cluster, request.getUser(), request.getPasswd(), request.getDb(),
                     request.getTbl(), request.getUserIp(), PrivPredicate.LOAD);
@@ -813,7 +845,12 @@ public class FrontendServiceImpl implements FrontendService.Iface {
         // get database
         Catalog catalog = Catalog.getCurrentCatalog();
         String fullDbName = ClusterNamespace.getFullName(cluster, request.getDb());
-        Database db = catalog.getDb(fullDbName);
+        Database db = null;
+        if (request.isSetDbId() && request.getDbId() > 0) {
+            db = catalog.getDb(request.getDbId());
+        } else {
+            db = catalog.getDb(fullDbName);
+        }
         if (db == null) {
             String dbName = fullDbName;
             if (Strings.isNullOrEmpty(request.getCluster())) {
@@ -866,12 +903,19 @@ public class FrontendServiceImpl implements FrontendService.Iface {
 
         if (request.isSetAuthCode()) {
             // TODO(cmy): find a way to check
+        } else if (request.isSetAuthCodeUuid()) {
+            checkAuthCodeUuid(request.getDb(), request.getTxnId(), request.getAuthCodeUuid());
         } else {
             checkPasswordAndPrivs(cluster, request.getUser(), request.getPasswd(), request.getDb(),
                     request.getTbl(), request.getUserIp(), PrivPredicate.LOAD);
         }
         String dbName = ClusterNamespace.getFullName(cluster, request.getDb());
-        Database db = Catalog.getCurrentCatalog().getDb(dbName);
+        Database db = null;
+        if (request.isSetDbId() && request.getDbId() > 0) {
+            db = Catalog.getCurrentCatalog().getDb(request.getDbId());
+        } else {
+            db = Catalog.getCurrentCatalog().getDb(dbName);
+        }
         if (db == null) {
             throw new MetaNotFoundException("db " + request.getDb() + " does not exist");
         }
@@ -996,6 +1040,25 @@ public class FrontendServiceImpl implements FrontendService.Iface {
     private String getClientAddrAsString() {
         TNetworkAddress addr = getClientAddr();
         return addr == null ? "unknown" : addr.hostname;
+    }
+
+    @Override
+    public TWaitingTxnStatusResult waitingTxnStatus(TWaitingTxnStatusRequest request) throws TException {
+        TWaitingTxnStatusResult result = new TWaitingTxnStatusResult();
+        result.setStatus(new TStatus());
+        try {
+            TransactionStatus txnStatus = Catalog.getCurrentGlobalTransactionMgr()
+                    .getWaitingTxnStatus(request.getDbId(), request.getTxnId());
+            result.setTxnStatusId(txnStatus.value());
+            result.status.setStatusCode(TStatusCode.OK);
+        } catch (TimeoutException e) {
+            result.status.setStatusCode(TStatusCode.INCOMPLETE);
+            result.status.addToErrorMsgs(e.getMessage());
+        } catch (AnalysisException e) {
+            result.status.setStatusCode(TStatusCode.INTERNAL_ERROR);
+            result.status.addToErrorMsgs(e.getMessage());
+        }
+        return result;
     }
 }
 

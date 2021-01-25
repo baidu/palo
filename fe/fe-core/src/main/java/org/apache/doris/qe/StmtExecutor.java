@@ -38,12 +38,19 @@ import org.apache.doris.analysis.SqlScanner;
 import org.apache.doris.analysis.StatementBase;
 import org.apache.doris.analysis.StmtRewriter;
 import org.apache.doris.analysis.StringLiteral;
+import org.apache.doris.analysis.TransactionBeginStmt;
+import org.apache.doris.analysis.TransactionCommitStmt;
+import org.apache.doris.analysis.TransactionRollbackStmt;
+import org.apache.doris.analysis.TransactionStmt;
 import org.apache.doris.analysis.UnsupportedStmt;
 import org.apache.doris.analysis.UseStmt;
 import org.apache.doris.catalog.Catalog;
 import org.apache.doris.catalog.Column;
+import org.apache.doris.catalog.Database;
+import org.apache.doris.catalog.OlapTable;
 import org.apache.doris.catalog.PrimitiveType;
 import org.apache.doris.catalog.ScalarType;
+import org.apache.doris.catalog.Table;
 import org.apache.doris.catalog.Table;
 import org.apache.doris.catalog.Table.TableType;
 import org.apache.doris.catalog.Type;
@@ -70,7 +77,11 @@ import org.apache.doris.mysql.MysqlEofPacket;
 import org.apache.doris.mysql.MysqlSerializer;
 import org.apache.doris.mysql.privilege.PrivPredicate;
 import org.apache.doris.planner.Planner;
+import org.apache.doris.planner.StreamLoadPlanner;
+import org.apache.doris.proto.PExecPlanFragmentResult;
 import org.apache.doris.proto.PQueryStatistics;
+import org.apache.doris.proto.PStatus;
+import org.apache.doris.proto.PUniqueId;
 import org.apache.doris.qe.QueryState.MysqlStateType;
 import org.apache.doris.qe.cache.Cache;
 import org.apache.doris.qe.cache.CacheAnalyzer;
@@ -79,14 +90,30 @@ import org.apache.doris.qe.cache.CacheBeProxy;
 import org.apache.doris.qe.cache.CacheProxy;
 import org.apache.doris.rewrite.ExprRewriter;
 import org.apache.doris.rewrite.mvrewrite.MVSelectFailedException;
+import org.apache.doris.rpc.BackendServiceProxy;
 import org.apache.doris.rpc.RpcException;
+import org.apache.doris.service.FrontendOptions;
+import org.apache.doris.system.Backend;
 import org.apache.doris.task.LoadEtlTask;
+import org.apache.doris.task.StreamLoadTask;
+import org.apache.doris.thrift.TExecPlanFragmentParams;
 import org.apache.doris.thrift.TExplainLevel;
+import org.apache.doris.thrift.TFileFormatType;
+import org.apache.doris.thrift.TFileType;
+import org.apache.doris.thrift.TLoadTxnBeginRequest;
+import org.apache.doris.thrift.TLoadTxnBeginResult;
+import org.apache.doris.thrift.TMergeType;
+import org.apache.doris.thrift.TNetworkAddress;
 import org.apache.doris.thrift.TQueryOptions;
 import org.apache.doris.thrift.TQueryType;
+import org.apache.doris.thrift.TStatusCode;
+import org.apache.doris.thrift.TStreamLoadPutRequest;
+import org.apache.doris.thrift.TTxnParams;
 import org.apache.doris.thrift.TUniqueId;
 import org.apache.doris.transaction.TabletCommitInfo;
 import org.apache.doris.transaction.TransactionCommitFailedException;
+import org.apache.doris.transaction.TransactionEntry;
+import org.apache.doris.transaction.TransactionState;
 import org.apache.doris.transaction.TransactionStatus;
 
 import com.google.common.base.Strings;
@@ -94,15 +121,21 @@ import com.google.common.collect.Lists;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.thrift.TException;
 import org.glassfish.jersey.internal.guava.Sets;
 
 import java.io.IOException;
 import java.io.StringReader;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
@@ -113,6 +146,7 @@ public class StmtExecutor {
     private static final Logger LOG = LogManager.getLogger(StmtExecutor.class);
 
     private static final AtomicLong STMT_ID_GENERATOR = new AtomicLong(0);
+    private static final int MAX_DATA_TO_SEND_FOR_TXN = 100;
 
     private ConnectContext context;
     private MysqlSerializer serializer;
@@ -260,6 +294,10 @@ public class StmtExecutor {
         context.setQueryId(queryId);
 
         try {
+            if (context.isTxnModel() && !(parsedStmt instanceof InsertStmt)
+                    && !(parsedStmt instanceof TransactionStmt)) {
+                throw new TException("This is in a transaction, only insert, commit, rollback is acceptable.");
+            }
             // support select hint e.g. select /*+ SET_VAR(query_timeout=1) */ sleep(3);
             SessionVariable sessionVariable = context.getSessionVariable();
             if (parsedStmt != null && parsedStmt instanceof SelectStmt) {
@@ -271,19 +309,22 @@ public class StmtExecutor {
                     }
                 }
             }
-            // analyze this query
-            analyze(sessionVariable.toThrift());
 
-            if (isForwardToMaster()) {
-                forwardToMaster();
-                if (masterOpExecutor != null && masterOpExecutor.getQueryId() != null) {
-                    // If the query id changed in master, we set it in context.
-                    // WARN: when query timeout, this code may not be reach.
-                    context.setQueryId(masterOpExecutor.getQueryId());
+            if (!context.isTxnModel()) {
+                // analyze this query
+                analyze(sessionVariable.toThrift());
+                if (isForwardToMaster()) {
+                    forwardToMaster();
+                    if (masterOpExecutor != null && masterOpExecutor.getQueryId() != null) {
+                        context.setQueryId(masterOpExecutor.getQueryId());
+                    }
+                    return;
+                } else {
+                    LOG.debug("no need to transfer to Master. stmt: {}", context.getStmtId());
                 }
-                return;
             } else {
-                LOG.debug("no need to transfer to Master. stmt: {}", context.getStmtId());
+                analyzer = new Analyzer(context.getCatalog(), context);
+                parsedStmt.analyze(analyzer);
             }
 
             if (parsedStmt instanceof QueryStmt) {
@@ -322,6 +363,8 @@ public class StmtExecutor {
                 handleEnterStmt();
             } else if (parsedStmt instanceof UseStmt) {
                 handleUseStmt();
+            } else if (parsedStmt instanceof TransactionStmt) {
+                handleTransactionStmt();
             } else if (parsedStmt instanceof CreateTableAsSelectStmt) {
                 handleInsertStmt();
             } else if (parsedStmt instanceof InsertStmt) { // Must ahead of DdlStmt because InserStmt is its subclass
@@ -369,7 +412,7 @@ public class StmtExecutor {
                 context.getState().setErrType(QueryState.ErrType.ANALYSIS_ERR);
             }
         } finally {
-            if (parsedStmt instanceof InsertStmt) {
+            if (!context.isTxnModel() && parsedStmt instanceof InsertStmt) {
                 InsertStmt insertStmt = (InsertStmt) parsedStmt;
                 // The transaction of a insert operation begin at analyze phase.
                 // So we should abort the transaction at this finally block if it encounter exception.
@@ -806,6 +849,256 @@ public class StmtExecutor {
         plannerProfile.setQueryFetchResultFinishTime();
     }
 
+    private TransactionStatus getWaitingTxnStatus(TTxnParams txnConf) throws Exception {
+        TransactionStatus txnStatus = null;
+        if (Catalog.getCurrentCatalog().isMaster()) {
+            txnStatus = Catalog.getCurrentGlobalTransactionMgr()
+                    .getWaitingTxnStatus(txnConf.getDbId(), txnConf.getTxnId());
+        } else {
+            MasterTxnExecutor masterTxnExecutor = new MasterTxnExecutor(context);
+            txnStatus = masterTxnExecutor.getWaitingTxnStatus(txnConf);
+        }
+        return txnStatus;
+    }
+
+    private void handleTransactionStmt() throws Exception {
+        // Every time set no send flag and clean all data in buffer
+        context.getMysqlChannel().reset();
+        context.getState().setOk(0, 0, "");
+        // create plan
+        if (context.getTxnEntry() != null && context.getTxnEntry().getRowsInTransaction() == 0
+                && (parsedStmt instanceof TransactionCommitStmt || parsedStmt instanceof TransactionRollbackStmt)) {
+            context.setTxnEntry(null);
+        } else if (parsedStmt instanceof TransactionBeginStmt) {
+            if (context.isTxnModel()) {
+                LOG.info("A transaction has already begin");
+                return;
+            }
+            TTxnParams txnParams = new TTxnParams();
+            txnParams.setNeedTxn(true).setThriftRpcTimeoutMs(5000).setTxnId(-1).setDb("").setTbl("");
+            TransactionEntry txnEntry = new TransactionEntry();
+            txnEntry.setTxnConf(txnParams);
+            context.setTxnEntry(txnEntry);
+        } else if (parsedStmt instanceof TransactionCommitStmt) {
+            if (!context.isTxnModel()) {
+                LOG.info("No transaction to commit");
+                return;
+            }
+
+            TTxnParams txnConf = context.getTxnEntry().getTxnConf();
+            PUniqueId fragmentInstanceId = new PUniqueId();
+            fragmentInstanceId.hi = txnConf.getFragmentInstanceId().getHi();
+            fragmentInstanceId.lo = txnConf.getFragmentInstanceId().getLo();
+
+            try {
+                if (context.getTxnEntry().getDataToSend().size() > 0) {
+                    BackendServiceProxy.getInstance().insertForTxn(
+                            fragmentInstanceId, context.getTxnEntry().getDataToSend(), context.getTxnEntry().getBackend());
+                    context.getTxnEntry().clearDataToSend();
+                }
+
+                BackendServiceProxy.getInstance().commitForTxn(fragmentInstanceId, context.getTxnEntry().getBackend());
+                TransactionStatus txnStatus = getWaitingTxnStatus(txnConf);
+                if (txnStatus == TransactionStatus.COMMITTED) {
+                    throw new AnalysisException("transaction commit successfully, BUT data will be visible later.");
+                } else if (txnStatus != TransactionStatus.VISIBLE) {
+                    throw new AnalysisException("commit failed, rollback.");
+                }
+            } catch (Exception e) {
+                throw new AnalysisException(e.getMessage());
+            } finally {
+                context.setTxnEntry(null);
+            }
+        } else if (parsedStmt instanceof TransactionRollbackStmt) {
+            if (!context.isTxnModel()) {
+                LOG.info("No transaction to rollback");
+                return;
+            }
+            TTxnParams txnConf = context.getTxnEntry().getTxnConf();
+            PUniqueId fragmentInstanceId = new PUniqueId();
+            fragmentInstanceId.hi = txnConf.getFragmentInstanceId().getHi();
+            fragmentInstanceId.lo = txnConf.getFragmentInstanceId().getLo();
+
+            try {
+                BackendServiceProxy.getInstance().rollbackForTxn(
+                        fragmentInstanceId, context.getTxnEntry().getBackend());
+            } catch (Exception e) {
+                throw new AnalysisException(e.getMessage());
+            } finally {
+                context.setTxnEntry(null);
+            }
+        } else {
+            throw new TException("parsedStmt type is not TransactionStmt");
+        }
+    }
+
+    public int executeForTxn(InsertStmt insertStmt)
+            throws UserException, TException, InterruptedException, ExecutionException, TimeoutException {
+        if (context.isTxnIniting()) { // first time, begin txn
+            beginTxn(insertStmt.getDb(), insertStmt.getTbl());
+        }
+        if (!context.getTxnEntry().getTxnConf().getDb().equals(insertStmt.getDb()) ||
+                !context.getTxnEntry().getTxnConf().getTbl().equals(insertStmt.getTbl())) {
+            throw new TException("Only one table can be inserted in one transaction.");
+        }
+        PUniqueId fragmentInstanceId = new PUniqueId();
+        fragmentInstanceId.hi = context.getTxnEntry().getTxnConf().getFragmentInstanceId().getHi();
+        fragmentInstanceId.lo = context.getTxnEntry().getTxnConf().getFragmentInstanceId().getLo();
+
+        QueryStmt queryStmt = insertStmt.getQueryStmt();
+        if (!(queryStmt instanceof SelectStmt)) {
+            throw new TException("queryStmt is not SelectStmt, insert command error");
+        }
+        SelectStmt selectStmt = (SelectStmt) queryStmt;
+        int effectRows = 0;
+        if (selectStmt.getValueList() != null) {
+            Table tbl = context.getTxnEntry().getTable();
+            for (List<Expr> row : selectStmt.getValueList().getRows()) {
+                if (tbl.getFullSchema().size() != row.size()) {
+                    throw new TException("Column count doesn't match value count");
+                }
+            }
+            for (List<Expr> row : selectStmt.getValueList().getRows()) {
+                ++effectRows;
+                String data = getRowStringValue(row);
+                List<String> dataToSend = context.getTxnEntry().getDataToSend();
+                dataToSend.add(data);
+                if (dataToSend.size() >= MAX_DATA_TO_SEND_FOR_TXN) {
+                    BackendServiceProxy.getInstance().insertForTxn(
+                            fragmentInstanceId, dataToSend, context.getTxnEntry().getBackend());
+                    context.getTxnEntry().clearDataToSend();
+                }
+            }
+        }
+        context.getTxnEntry().setRowsInTransaction(context.getTxnEntry().getRowsInTransaction() + effectRows);
+        return effectRows;
+    }
+    private void beginTxn(String dbName, String tblName) throws UserException, TException,
+            InterruptedException, ExecutionException, TimeoutException {
+        TransactionEntry txnEntry = context.getTxnEntry();
+        TTxnParams txnConf = txnEntry.getTxnConf();
+        long timeoutSecond = ConnectContext.get().getSessionVariable().getQueryTimeoutS();
+        TransactionState.LoadJobSourceType sourceType = TransactionState.LoadJobSourceType.INSERT_STREAMING;
+        Database dbObj = Catalog.getCurrentCatalog().getDb(dbName);
+        if (dbObj == null) {
+            throw new TException("database is invalid for dbName: " + dbName);
+        }
+        Table tblObj = dbObj.getTable(tblName);
+        if (tblObj == null) {
+            throw new TException("table is invalid: " + tblName);
+        }
+        txnEntry.setTable(tblObj);
+        txnConf.setDbId(dbObj.getId()).setTbl(tblName).setDb(dbName);
+        String label = "txn_insert_" + DebugUtil.printId(context.queryId());
+        if (Catalog.getCurrentCatalog().isMaster()) {
+            long txnId = Catalog.getCurrentGlobalTransactionMgr().beginTransaction(
+                    txnConf.getDbId(), Lists.newArrayList(tblObj.getId()),
+                    label, new TransactionState.TxnCoordinator(
+                            TransactionState.TxnSourceType.FE, FrontendOptions.getLocalHostAddress()),
+                    sourceType, timeoutSecond);
+            txnConf.setTxnId(txnId);
+            String authCodeUuid = Catalog.getCurrentGlobalTransactionMgr().getTransactionState(
+                    txnConf.getDbId(), txnConf.getTxnId()).getAuthCode();
+            txnConf.setAuthCodeUuid(authCodeUuid);
+        } else {
+            String authCodeUuid = UUID.randomUUID().toString();
+            MasterTxnExecutor masterTxnExecutor = new MasterTxnExecutor(context);
+            TLoadTxnBeginRequest request = new TLoadTxnBeginRequest();
+            request.setDb(txnConf.getDb()).setTbl(txnConf.getTbl()).setAuthCodeUuid(authCodeUuid)
+                    .setCluster(dbObj.getClusterName()).setLabel(label).setUser("").setUserIp("").setPasswd("");
+            TLoadTxnBeginResult result = masterTxnExecutor.beginTxn(request);
+            txnConf.setTxnId(result.getTxnId());
+            txnConf.setAuthCodeUuid(authCodeUuid);
+        }
+
+        TStreamLoadPutRequest request = new TStreamLoadPutRequest();
+        request.setTxnId(txnConf.getTxnId()).setDb(txnConf.getDb())
+                .setTbl(txnConf.getTbl())
+                .setFileType(TFileType.FILE_STREAM).setFormatType(TFileFormatType.FORMAT_CSV_PLAIN)
+                .setMergeType(TMergeType.APPEND).setThriftRpcTimeoutMs(5000).setLoadId(context.queryId());
+
+        StreamLoadTask streamLoadTask = StreamLoadTask.fromTStreamLoadPutRequest(request);
+        StreamLoadPlanner planner = new StreamLoadPlanner(dbObj,
+                (OlapTable) tblObj, streamLoadTask);
+        TExecPlanFragmentParams tRequest = planner.plan(streamLoadTask.getId());
+
+        List<Long> beIds = Catalog.getCurrentSystemInfo().seqChooseBackendIds(
+                1, true, true, dbObj.getClusterName());
+        if (beIds == null) {
+            throw new TException("no backend, you can't insert data");
+        }
+        Backend backend = Catalog.getCurrentSystemInfo().getIdToBackend().get(beIds.get(0));
+        txnConf.setFragmentInstanceId(tRequest.params.fragment_instance_id);
+        txnConf.setUserIp(backend.getHost());
+        tRequest.setTxnConf(txnConf).setImportLabel(label);
+        txnEntry.setBackend(backend);
+        PExecPlanFragmentResult result = execRemoteFragmentAsync(backend, tRequest)
+                .get(Config.remote_fragment_exec_timeout_ms, TimeUnit.MILLISECONDS);
+        if (result.status.error_msgs != null && !result.status.error_msgs.isEmpty()) {
+            throw new TException(result.status.error_msgs.get(0));
+        }
+    }
+
+    public Future<PExecPlanFragmentResult> execRemoteFragmentAsync(
+            Backend backend, TExecPlanFragmentParams rpcParams) throws TException {
+        TNetworkAddress brpcAddress = null;
+        try {
+            brpcAddress = new TNetworkAddress(backend.getHost(), backend.getBrpcPort());
+        } catch (Exception e) {
+            throw new TException(e.getMessage());
+        }
+        try {
+            return BackendServiceProxy.getInstance().execPlanFragmentAsync(brpcAddress, rpcParams);
+        } catch (RpcException e) {
+            // DO NOT throw exception here, return a complete future with error code,
+            // so that the following logic will cancel the fragment.
+            return new Future<PExecPlanFragmentResult>() {
+                @Override
+                public boolean cancel(boolean mayInterruptIfRunning) {
+                    return false;
+                }
+
+                @Override
+                public boolean isCancelled() {
+                    return false;
+                }
+
+                @Override
+                public boolean isDone() {
+                    return true;
+                }
+
+                @Override
+                public PExecPlanFragmentResult get() {
+                    PExecPlanFragmentResult result = new PExecPlanFragmentResult();
+                    PStatus pStatus = new PStatus();
+                    pStatus.error_msgs = Lists.newArrayList();
+                    pStatus.error_msgs.add(e.getMessage());
+                    // use THRIFT_RPC_ERROR so that this BE will be added to the blacklist later.
+                    pStatus.status_code = TStatusCode.THRIFT_RPC_ERROR.getValue();
+                    result.status = pStatus;
+                    return result;
+                }
+
+                @Override
+                public PExecPlanFragmentResult get(long timeout, TimeUnit unit) {
+                    return get();
+                }
+            };
+        }
+    }
+
+    public static String getRowStringValue(List<Expr> cols) {
+        if (cols.size() == 0) {
+            return "";
+        }
+        List<String> vals = new ArrayList<>();
+        for (Expr expr : cols) {
+            vals.add(expr.getStringValue());
+        }
+        return String.join("\t", vals);
+    }
+
     // Process a select statement.
     private void handleInsertStmt() throws Exception {
         // Every time set no send flag and clean all data in buffer
@@ -832,124 +1125,133 @@ public class StmtExecutor {
 
         long createTime = System.currentTimeMillis();
         Throwable throwable = null;
-
-        String label = insertStmt.getLabel();
-        LOG.info("Do insert [{}] with query id: {}", label, DebugUtil.printId(context.queryId()));
-
+        String label = "";
         long loadedRows = 0;
         int filteredRows = 0;
         TransactionStatus txnStatus = TransactionStatus.ABORTED;
-        try {
-            coord = new Coordinator(context, analyzer, planner);
-            coord.setQueryType(TQueryType.LOAD);
-
-            QeProcessorImpl.INSTANCE.registerQuery(context.queryId(), coord);
-
-            coord.exec();
-
-            coord.join(context.getSessionVariable().getQueryTimeoutS());
-            if (!coord.isDone()) {
-                coord.cancel();
-                ErrorReport.reportDdlException(ErrorCode.ERR_EXECUTE_TIMEOUT);
+        String errMsg = "";
+        if (context.isTxnModel()) {
+            if (insertStmt.getQueryStmt() instanceof SelectStmt) {
+                if (((SelectStmt) insertStmt.getQueryStmt()).getTableRefs().size() > 0) {
+                    throw new TException("Insert into ** select is not supported in a transaction");
+                }
             }
+            txnStatus = TransactionStatus.PREPARE;
+            loadedRows = executeForTxn(insertStmt);
+        } else {
+            label = insertStmt.getLabel();
+            LOG.info("Do insert [{}] with query id: {}", label, DebugUtil.printId(context.queryId()));
+            try {
+                coord = new Coordinator(context, analyzer, planner);
+                coord.setQueryType(TQueryType.LOAD);
 
-            if (!coord.getExecStatus().ok()) {
-                String errMsg = coord.getExecStatus().getErrorMsg();
-                LOG.warn("insert failed: {}", errMsg);
-                ErrorReport.reportDdlException(errMsg, ErrorCode.ERR_FAILED_WHEN_INSERT);
-            }
+                QeProcessorImpl.INSTANCE.registerQuery(context.queryId(), coord);
 
-            LOG.debug("delta files is {}", coord.getDeltaUrls());
+                coord.exec();
 
-            if (coord.getLoadCounters().get(LoadEtlTask.DPP_NORMAL_ALL) != null) {
-                loadedRows = Long.valueOf(coord.getLoadCounters().get(LoadEtlTask.DPP_NORMAL_ALL));
-            }
-            if (coord.getLoadCounters().get(LoadEtlTask.DPP_ABNORMAL_ALL) != null) {
-                filteredRows = Integer.valueOf(coord.getLoadCounters().get(LoadEtlTask.DPP_ABNORMAL_ALL));
-            }
+                coord.join(context.getSessionVariable().getQueryTimeoutS());
+                if (!coord.isDone()) {
+                    coord.cancel();
+                    ErrorReport.reportDdlException(ErrorCode.ERR_EXECUTE_TIMEOUT);
+                }
 
-            // if in strict mode, insert will fail if there are filtered rows
-            if (context.getSessionVariable().getEnableInsertStrict()) {
-                if (filteredRows > 0) {
-                    context.getState().setError("Insert has filtered data in strict mode, tracking_url="
-                            + coord.getTrackingUrl());
+                if (!coord.getExecStatus().ok()) {
+                    errMsg = coord.getExecStatus().getErrorMsg();
+                    LOG.warn("insert failed: {}", errMsg);
+                    ErrorReport.reportDdlException(errMsg, ErrorCode.ERR_FAILED_WHEN_INSERT);
+                }
+
+                LOG.debug("delta files is {}", coord.getDeltaUrls());
+
+                if (coord.getLoadCounters().get(LoadEtlTask.DPP_NORMAL_ALL) != null) {
+                    loadedRows = Long.valueOf(coord.getLoadCounters().get(LoadEtlTask.DPP_NORMAL_ALL));
+                }
+                if (coord.getLoadCounters().get(LoadEtlTask.DPP_ABNORMAL_ALL) != null) {
+                    filteredRows = Integer.valueOf(coord.getLoadCounters().get(LoadEtlTask.DPP_ABNORMAL_ALL));
+                }
+
+                // if in strict mode, insert will fail if there are filtered rows
+                if (context.getSessionVariable().getEnableInsertStrict()) {
+                    if (filteredRows > 0) {
+                        context.getState().setError("Insert has filtered data in strict mode, tracking_url="
+                                + coord.getTrackingUrl());
+                        return;
+                    }
+                }
+
+                if (insertStmt.getTargetTable().getType() != TableType.OLAP) {
+                    // no need to add load job.
+                    // MySQL table is already being inserted.
+                    context.getState().setOk(loadedRows, filteredRows, null);
                     return;
                 }
-            }
 
-            if (insertStmt.getTargetTable().getType() != TableType.OLAP) {
-                // no need to add load job.
-                // MySQL table is already being inserted.
-                context.getState().setOk(loadedRows, filteredRows, null);
-                return;
-            }
-
-            if (loadedRows == 0 && filteredRows == 0) {
-                // if no data, just abort txn and return ok
-                Catalog.getCurrentGlobalTransactionMgr().abortTransaction(insertStmt.getDbObj().getId(),
-                        insertStmt.getTransactionId(), TransactionCommitFailedException.NO_DATA_TO_LOAD_MSG);
-                context.getState().setOk();
-                return;
-            }
-            if (Catalog.getCurrentGlobalTransactionMgr().commitAndPublishTransaction(
-                    insertStmt.getDbObj(), Lists.newArrayList(insertStmt.getTargetTable()), insertStmt.getTransactionId(),
-                    TabletCommitInfo.fromThrift(coord.getCommitInfos()),
-                    context.getSessionVariable().getInsertVisibleTimeoutMs())) {
-                txnStatus = TransactionStatus.VISIBLE;
-                MetricRepo.COUNTER_LOAD_FINISHED.increase(1L);
-            } else {
-                txnStatus = TransactionStatus.COMMITTED;
-            }
-
-        } catch (Throwable t) {
-            // if any throwable being thrown during insert operation, first we should abort this txn
-            LOG.warn("handle insert stmt fail: {}", label, t);
-            try {
-                Catalog.getCurrentGlobalTransactionMgr().abortTransaction(
-                        insertStmt.getDbObj().getId(), insertStmt.getTransactionId(),
-                        t.getMessage() == null ? "unknown reason" : t.getMessage());
-            } catch (Exception abortTxnException) {
-                // just print a log if abort txn failed. This failure do not need to pass to user.
-                // user only concern abort how txn failed.
-                LOG.warn("errors when abort txn", abortTxnException);
-            }
-
-            if (!Config.using_old_load_usage_pattern) {
-                // if not using old load usage pattern, error will be returned directly to user
-                StringBuilder sb = new StringBuilder(t.getMessage());
-                if (!Strings.isNullOrEmpty(coord.getTrackingUrl())) {
-                    sb.append(". url: " + coord.getTrackingUrl());
+                if (loadedRows == 0 && filteredRows == 0) {
+                    // if no data, just abort txn and return ok
+                    Catalog.getCurrentGlobalTransactionMgr().abortTransaction(insertStmt.getDbObj().getId(),
+                            insertStmt.getTransactionId(), TransactionCommitFailedException.NO_DATA_TO_LOAD_MSG);
+                    context.getState().setOk();
+                    return;
                 }
-                context.getState().setError(sb.toString());
-                return;
+                if (Catalog.getCurrentGlobalTransactionMgr().commitAndPublishTransaction(
+                        insertStmt.getDbObj(), Lists.newArrayList(insertStmt.getTargetTable()), insertStmt.getTransactionId(),
+                        TabletCommitInfo.fromThrift(coord.getCommitInfos()),
+                        context.getSessionVariable().getInsertVisibleTimeoutMs())) {
+                    txnStatus = TransactionStatus.VISIBLE;
+                    MetricRepo.COUNTER_LOAD_FINISHED.increase(1L);
+                } else {
+                    txnStatus = TransactionStatus.COMMITTED;
+                }
+
+            } catch (Throwable t) {
+                // if any throwable being thrown during insert operation, first we should abort this txn
+                LOG.warn("handle insert stmt fail: {}", label, t);
+                try {
+                    Catalog.getCurrentGlobalTransactionMgr().abortTransaction(
+                            insertStmt.getDbObj().getId(), insertStmt.getTransactionId(),
+                            t.getMessage() == null ? "unknown reason" : t.getMessage());
+                } catch (Exception abortTxnException) {
+                    // just print a log if abort txn failed. This failure do not need to pass to user.
+                    // user only concern abort how txn failed.
+                    LOG.warn("errors when abort txn", abortTxnException);
+                }
+
+                if (!Config.using_old_load_usage_pattern) {
+                    // if not using old load usage pattern, error will be returned directly to user
+                    StringBuilder sb = new StringBuilder(t.getMessage());
+                    if (!Strings.isNullOrEmpty(coord.getTrackingUrl())) {
+                        sb.append(". url: " + coord.getTrackingUrl());
+                    }
+                    context.getState().setError(sb.toString());
+                    return;
+                }
+
+                /*
+                 * If config 'using_old_load_usage_pattern' is true.
+                 * Doris will return a label to user, and user can use this label to check load job's status,
+                 * which exactly like the old insert stmt usage pattern.
+                 */
+                throwable = t;
             }
 
-            /*
-             * If config 'using_old_load_usage_pattern' is true.
-             * Doris will return a label to user, and user can use this label to check load job's status,
-             * which exactly like the old insert stmt usage pattern.
-             */
-            throwable = t;
-        }
+            // Go here, which means:
+            // 1. transaction is finished successfully (COMMITTED or VISIBLE), or
+            // 2. transaction failed but Config.using_old_load_usage_pattern is true.
+            // we will record the load job info for these 2 cases
 
-        // Go here, which means:
-        // 1. transaction is finished successfully (COMMITTED or VISIBLE), or
-        // 2. transaction failed but Config.using_old_load_usage_pattern is true.
-        // we will record the load job info for these 2 cases
-
-        String errMsg = "";
-        try {
-            context.getCatalog().getLoadManager().recordFinishedLoadJob(
-                    label,
-                    insertStmt.getDb(),
-                    insertStmt.getTargetTable().getId(),
-                    EtlJobType.INSERT,
-                    createTime,
-                    throwable == null ? "" : throwable.getMessage(),
-                    coord.getTrackingUrl());
-        } catch (MetaNotFoundException e) {
-            LOG.warn("Record info of insert load with error {}", e.getMessage(), e);
-            errMsg = "Record info of insert load with error " + e.getMessage();
+            try {
+                context.getCatalog().getLoadManager().recordFinishedLoadJob(
+                        label,
+                        insertStmt.getDb(),
+                        insertStmt.getTargetTable().getId(),
+                        EtlJobType.INSERT,
+                        createTime,
+                        throwable == null ? "" : throwable.getMessage(),
+                        coord.getTrackingUrl());
+            } catch (MetaNotFoundException e) {
+                LOG.warn("Record info of insert load with error {}", e.getMessage(), e);
+                errMsg = "Record info of insert load with error " + e.getMessage();
+            }
         }
 
         // {'label':'my_label1', 'status':'visible', 'txnId':'123'}
@@ -1118,6 +1420,9 @@ public class StmtExecutor {
         }
         if (statisticsForAuditLog.scan_rows == null) {
             statisticsForAuditLog.scan_rows = 0L;
+        }
+        if (statisticsForAuditLog.returned_rows == null) {
+            statisticsForAuditLog.returned_rows = 0L;
         }
         if (statisticsForAuditLog.cpu_ms == null) {
             statisticsForAuditLog.cpu_ms = 0L;

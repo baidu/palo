@@ -201,7 +201,7 @@ public class Planner {
         QueryStatisticsTransferOptimizer queryStatisticTransferOptimizer = new QueryStatisticsTransferOptimizer(rootFragment);
         queryStatisticTransferOptimizer.optimizeQueryStatisticsTransfer();
 
-        if (statement instanceof InsertStmt) {
+        if (statement instanceof InsertStmt && !analyzer.getContext().isTxnModel()) {
             InsertStmt insertStmt = (InsertStmt) statement;
             rootFragment = distributedPlanner.createInsertFragment(rootFragment, insertStmt, fragments);
             rootFragment.setSink(insertStmt.getDataSink());

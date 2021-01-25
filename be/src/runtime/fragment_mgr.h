@@ -46,6 +46,7 @@ class ThreadPool;
 class TExecPlanFragmentParams;
 class TExecPlanFragmentParamsList;
 class TUniqueId;
+class StreamLoadPipe;
 
 std::string to_load_error_http_path(const std::string& file_name);
 
@@ -81,6 +82,10 @@ public:
     Status exec_external_plan_fragment(const TScanOpenParams& params,
                                        const TUniqueId& fragment_instance_id,
                                        std::vector<TScanColumnDesc>* selected_columns);
+
+    void set_pipe(const TUniqueId& fragment_instance_id, std::shared_ptr<StreamLoadPipe> pipe);
+
+    std::shared_ptr<StreamLoadPipe> get_pipe(const TUniqueId& fragment_instance_id);
 
 private:
     void _exec_actual(std::shared_ptr<FragmentExecState> exec_state, FinishCallback cb);

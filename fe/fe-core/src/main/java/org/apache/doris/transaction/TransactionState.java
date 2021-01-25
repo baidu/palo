@@ -45,6 +45,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -195,6 +196,7 @@ public class TransactionState implements Writable {
     
     private long callbackId = -1;
     private long timeoutMs = Config.stream_load_default_timeout_second;
+    private String authCode = "";
 
     // is set to true, we will double the publish timeout
     private boolean prolongPublishTimeout = false;
@@ -231,6 +233,7 @@ public class TransactionState implements Writable {
         this.publishVersionTasks = Maps.newHashMap();
         this.hasSendTask = false;
         this.latch = new CountDownLatch(1);
+        this.authCode = UUID.randomUUID().toString();
     }
     
     public TransactionState(long dbId, List<Long> tableIdList, long transactionId, String label, TUniqueId requestId,
@@ -254,8 +257,17 @@ public class TransactionState implements Writable {
         this.latch = new CountDownLatch(1);
         this.callbackId = callbackId;
         this.timeoutMs = timeoutMs;
+        this.authCode = UUID.randomUUID().toString();
     }
-    
+
+    public void setAuthCode(String authCode) {
+        this.authCode = authCode;
+    }
+
+    public String getAuthCode() {
+        return authCode;
+    }
+
     public void setErrorReplicas(Set<Long> newErrorReplicas) {
         this.errorReplicas = newErrorReplicas;
     }
