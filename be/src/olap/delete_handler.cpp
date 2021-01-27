@@ -261,7 +261,10 @@ OLAPStatus DeleteHandler::init(const TabletSchema& schema,
             }
 
             if (reader != nullptr) {
-                temp.column_predicate_vec.push_back(reader->_parse_to_predicate(condition, true));
+                ColumnPredicate* column_predicate = reader->_parse_to_predicate(condition, true);
+                if (column_predicate != nullptr) {
+                    temp.column_predicate_vec.push_back(column_predicate);
+                }
             }
         }
 
@@ -283,9 +286,11 @@ OLAPStatus DeleteHandler::init(const TabletSchema& schema,
             }
 
             if (reader != nullptr) {
-                temp.column_predicate_vec.push_back(reader->_parse_to_predicate(condition, true));
+                ColumnPredicate* column_predicate = reader->_parse_to_predicate(condition, true);
+                if (column_predicate != nullptr) {
+                    temp.column_predicate_vec.push_back(column_predicate);
+                }
             }
-
         }
 
         _del_conds.emplace_back(std::move(temp));
