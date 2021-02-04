@@ -44,8 +44,6 @@ import org.apache.doris.common.jmockit.Deencapsulation;
 
 import com.google.common.collect.Lists;
 
-import org.apache.log4j.Level;
-import org.apache.log4j.LogManager;
 import org.junit.Assert;
 import org.junit.Test;
 
