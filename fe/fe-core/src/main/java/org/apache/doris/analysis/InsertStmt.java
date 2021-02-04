@@ -647,11 +647,6 @@ public class InsertStmt extends DdlStmt {
             Expr expr = row.get(i);
             Column col = targetColumns.get(i);
 
-            if (!col.isAllowNull() && expr instanceof NullLiteral) {
-                throw new AnalysisException("Column cat not be null, rowIdx = " +
-                        rowIdx + ", column = " + targetColumns.get(i).getName());
-            }
-
             // TargetTable's hll column must be hll_hash's result
             if (col.getType().equals(Type.HLL)) {
                 checkHllCompatibility(col, expr);
