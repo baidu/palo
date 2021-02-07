@@ -17,15 +17,13 @@
 
 package org.apache.doris.task;
 
-import com.google.common.base.Strings;
-import com.google.common.collect.Lists;
 
-import org.apache.doris.analysis.Separator;
 import org.apache.doris.analysis.Expr;
 import org.apache.doris.analysis.ImportColumnDesc;
 import org.apache.doris.analysis.ImportColumnsStmt;
 import org.apache.doris.analysis.ImportWhereStmt;
 import org.apache.doris.analysis.PartitionNames;
+import org.apache.doris.analysis.Separator;
 import org.apache.doris.analysis.SqlParser;
 import org.apache.doris.analysis.SqlScanner;
 import org.apache.doris.common.AnalysisException;
@@ -38,8 +36,12 @@ import org.apache.doris.thrift.TFileFormatType;
 import org.apache.doris.thrift.TFileType;
 import org.apache.doris.thrift.TStreamLoadPutRequest;
 import org.apache.doris.thrift.TUniqueId;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+import com.google.common.base.Strings;
+import com.google.common.collect.Lists;
 
 import java.io.StringReader;
 import java.util.List;
@@ -104,6 +106,10 @@ public class StreamLoadTask implements LoadTaskInfo {
 
     public List<ImportColumnDesc> getColumnExprDescs() {
         return columnExprDescs;
+    }
+
+    public Expr getPrecedingFilter() {
+        return null;
     }
 
     public Expr getWhereExpr() {

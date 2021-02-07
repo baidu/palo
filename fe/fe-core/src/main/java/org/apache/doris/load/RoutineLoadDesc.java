@@ -17,8 +17,6 @@
 
 package org.apache.doris.load;
 
-import com.google.common.base.Strings;
-
 import org.apache.doris.analysis.Analyzer;
 import org.apache.doris.analysis.Separator;
 import org.apache.doris.analysis.Expr;
@@ -29,10 +27,13 @@ import org.apache.doris.common.AnalysisException;
 import org.apache.doris.common.UserException;
 import org.apache.doris.load.loadv2.LoadTask;
 
+import com.google.common.base.Strings;
+
 public class RoutineLoadDesc {
     private final Separator columnSeparator;
     private final Separator lineDelimiter;
     private final ImportColumnsStmt columnsInfo;
+    private final ImportWhereStmt precedingFilter;
     private final ImportWhereStmt wherePredicate;
     private final Expr deleteCondition;
     private LoadTask.MergeType mergeType;
@@ -41,12 +42,13 @@ public class RoutineLoadDesc {
     private final String sequenceColName;
 
     public RoutineLoadDesc(Separator columnSeparator, Separator lineDelimiter, ImportColumnsStmt columnsInfo,
-                           ImportWhereStmt wherePredicate, PartitionNames partitionNames,
+                           ImportWhereStmt precedingFilter, ImportWhereStmt wherePredicate, PartitionNames partitionNames,
                            Expr deleteCondition, LoadTask.MergeType mergeType,
                            String sequenceColName) {
         this.columnSeparator = columnSeparator;
         this.lineDelimiter = lineDelimiter;
         this.columnsInfo = columnsInfo;
+        this.precedingFilter = precedingFilter;
         this.wherePredicate = wherePredicate;
         this.partitionNames = partitionNames;
         this.deleteCondition = deleteCondition;
@@ -64,6 +66,10 @@ public class RoutineLoadDesc {
 
     public ImportColumnsStmt getColumnsInfo() {
         return columnsInfo;
+    }
+
+    public ImportWhereStmt getPrecedingFilter() {
+        return precedingFilter;
     }
 
     public ImportWhereStmt getWherePredicate() {
