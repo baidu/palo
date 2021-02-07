@@ -3016,6 +3016,7 @@ public class Catalog {
             }
             CreateTableStmt parsedCreateTableStmt = (CreateTableStmt) SqlParserUtils.parseAndAnalyzeStmt(createTableStmt.get(0), ConnectContext.get());
             parsedCreateTableStmt.setTableName(stmt.getTableName());
+            parsedCreateTableStmt.setIfNotExists(stmt.isIfNotExists());
             createTable(parsedCreateTableStmt);
         } catch (UserException e) {
             throw new DdlException("Failed to execute CREATE TABLE LIKE " + stmt.getExistedTableName() + ". Reason: " + e.getMessage());
