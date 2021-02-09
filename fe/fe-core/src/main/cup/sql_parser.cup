@@ -675,6 +675,8 @@ stmt ::=
     {: RESULT = stmt; :}
     | insert_stmt : stmt
     {: RESULT = stmt; :}
+    | update_stmt : stmt
+    {: RESULT = stmt; :}
     | backup_stmt : stmt
     {: RESULT = stmt; :}
     | restore_stmt : stmt

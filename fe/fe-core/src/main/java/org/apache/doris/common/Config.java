@@ -1370,7 +1370,7 @@ public class Config extends ConfigBase {
     @ConfField
     public static boolean enable_outfile_to_local = false;
 
-	/**
+    /**
      * If set to true, FE will store metric data periodically, and open monitoring service.
      */
     @ConfField
@@ -1381,4 +1381,7 @@ public class Config extends ConfigBase {
      */
     @ConfField
     public static int metric_ttl = 30;
+    
+    @ConfField(masterOnly = true)
+    public static boolean enable_concurrent_update = false;
 }

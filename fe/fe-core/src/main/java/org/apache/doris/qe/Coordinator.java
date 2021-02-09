@@ -196,7 +196,6 @@ public class Coordinator {
     private TResourceInfo tResourceInfo;
     private boolean needReport;
 
-    private String clusterName;
     // parallel execute
     private final TUniqueId nextInstanceId;
 
@@ -219,15 +218,14 @@ public class Coordinator {
         this.tResourceInfo = new TResourceInfo(context.getQualifiedUser(),
                 context.getSessionVariable().getResourceGroup());
         this.needReport = context.getSessionVariable().isReportSucc();
-        this.clusterName = context.getClusterName();
         this.nextInstanceId = new TUniqueId();
         nextInstanceId.setHi(queryId.hi);
         nextInstanceId.setLo(queryId.lo + 1);
     }
 
-    // Used for broker load task/export task coordinator
+    // Used for broker load task/export task/update coordinator
     public Coordinator(Long jobId, TUniqueId queryId, DescriptorTable descTable,
-            List<PlanFragment> fragments, List<ScanNode> scanNodes, String cluster, String timezone) {
+            List<PlanFragment> fragments, List<ScanNode> scanNodes, String timezone) {
         this.isBlockQuery = true;
         this.jobId = jobId;
         this.queryId = queryId;
@@ -240,7 +238,6 @@ public class Coordinator {
         this.queryGlobals.setTimeZone(timezone);
         this.tResourceInfo = new TResourceInfo("", "");
         this.needReport = true;
-        this.clusterName = cluster;
         this.nextInstanceId = new TUniqueId();
         nextInstanceId.setHi(queryId.hi);
         nextInstanceId.setLo(queryId.lo + 1);

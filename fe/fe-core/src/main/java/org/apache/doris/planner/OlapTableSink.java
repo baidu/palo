@@ -62,7 +62,6 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Range;
 
-import org.apache.commons.collections.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -76,7 +75,7 @@ public class OlapTableSink extends DataSink {
     // input variables
     private OlapTable dstTable;
     private TupleDescriptor tupleDescriptor;
-    // specified partition ids. this list should not be empty and should contains all related partition ids
+    // specified partition ids.
     private List<Long> partitionIds;
 
     // set after init called
@@ -85,7 +84,6 @@ public class OlapTableSink extends DataSink {
     public OlapTableSink(OlapTable dstTable, TupleDescriptor tupleDescriptor, List<Long> partitionIds) {
         this.dstTable = dstTable;
         this.tupleDescriptor = tupleDescriptor;
-        Preconditions.checkState(!CollectionUtils.isEmpty(partitionIds));
         this.partitionIds = partitionIds;
     }
 
@@ -99,6 +97,12 @@ public class OlapTableSink extends DataSink {
         tDataSink.setType(TDataSinkType.OLAP_TABLE_SINK);
         tDataSink.setOlapTableSink(tSink);
 
+        if (partitionIds == null) {
+            partitionIds = dstTable.getPartitionIds();
+            if (partitionIds.isEmpty()) {
+                ErrorReport.reportAnalysisException(ErrorCode.ERR_EMPTY_PARTITION_IN_TABLE, dstTable.getName());
+            }
+        }
         for (Long partitionId : partitionIds) {
             Partition part = dstTable.getPartition(partitionId);
             if (part == null) {

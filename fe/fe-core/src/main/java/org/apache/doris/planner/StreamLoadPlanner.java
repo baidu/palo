@@ -47,6 +47,7 @@ import org.apache.doris.thrift.TQueryType;
 import org.apache.doris.thrift.TScanRangeLocations;
 import org.apache.doris.thrift.TScanRangeParams;
 import org.apache.doris.thrift.TUniqueId;
+
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 
@@ -195,7 +196,7 @@ public class StreamLoadPlanner {
     }
 
     // get all specified partition ids.
-    // if no partition specified, return all partitions
+    // if no partition specified, return null
     private List<Long> getAllPartitionIds() throws DdlException {
         List<Long> partitionIds = Lists.newArrayList();
 
@@ -208,15 +209,8 @@ public class StreamLoadPlanner {
                 }
                 partitionIds.add(part.getId());
             }
-        } else {
-            for (Partition partition : destTable.getPartitions()) {
-                partitionIds.add(partition.getId());
-            }
-            if (partitionIds.isEmpty()) {
-                ErrorReport.reportDdlException(ErrorCode.ERR_EMPTY_PARTITION_IN_TABLE, destTable.getName());
-            }
+            return partitionIds;
         }
-
-        return partitionIds;
+        return null;
     }
 }

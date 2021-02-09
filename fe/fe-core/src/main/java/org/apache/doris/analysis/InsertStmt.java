@@ -92,8 +92,7 @@ public class InsertStmt extends DdlStmt {
     private final TableName tblName;
     private final PartitionNames targetPartitionNames;
     // parsed from targetPartitionNames.
-    // if targetPartitionNames is not set, add all formal partitions' id of the table into it
-    private List<Long> targetPartitionIds = Lists.newArrayList();
+    private List<Long> targetPartitionIds;
     private final List<String> targetColumnNames;
     private QueryStmt queryStmt;
     private final List<String> planHints;
@@ -344,6 +343,7 @@ public class InsertStmt extends DdlStmt {
 
             // partition
             if (targetPartitionNames != null) {
+                targetPartitionIds = Lists.newArrayList();
                 if (olapTable.getPartitionInfo().getType() == PartitionType.UNPARTITIONED) {
                     ErrorReport.reportAnalysisException(ErrorCode.ERR_PARTITION_CLAUSE_NO_ALLOWED);
                 }
@@ -354,14 +354,6 @@ public class InsertStmt extends DdlStmt {
                                 ErrorCode.ERR_UNKNOWN_PARTITION, partName, targetTable.getName());
                     }
                     targetPartitionIds.add(part.getId());
-                }
-            } else {
-                for (Partition partition : olapTable.getPartitions()) {
-                    targetPartitionIds.add(partition.getId());
-                }
-                if (targetPartitionIds.isEmpty()) {
-                    ErrorReport.reportAnalysisException(
-                            ErrorCode.ERR_EMPTY_PARTITION_IN_TABLE, targetTable.getName());
                 }
             }
             // need a descriptor
@@ -814,7 +806,9 @@ public class InsertStmt extends DdlStmt {
     @Override
     public void reset() {
         super.reset();
-        targetPartitionIds.clear();
+        if (targetPartitionIds != null) {
+            targetPartitionIds.clear();
+        }
         queryStmt.reset();
         resultExprs.clear();
         exprByName.clear();
