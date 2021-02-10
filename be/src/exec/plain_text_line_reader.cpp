@@ -195,12 +195,14 @@ Status PlainTextLineReader::read_line(const uint8_t** ptr, size_t* size, bool* e
 
         if (pos == nullptr) {
             // didn't find line delimiter, read more data from decompressor
-            // for multi bytes delimiter we cannot set offset to avoid incomplete
-            // delimiter
-            // read from file reader
             if (_line_delimiter.size() == 1) {
+                // If lint delimiter is single byte, we can safely point the "offset" to the next pos to read.
+                // But for multi bytes delimiter, we cannot set "offset" because current output buf may
+                // contains part of line delimiter.
                 offset = output_buf_read_remaining();
             }
+
+            // read from file reader
             extend_output_buf();
             if ((_input_buf_limit > _input_buf_pos) && _more_input_bytes == 0) {
                 // we still have data in input which is not decompressed.
@@ -246,6 +248,13 @@ Status PlainTextLineReader::read_line(const uint8_t** ptr, size_t* size, bool* e
                         // last loop we meet stream end,
                         // and now we finished reading file, so we are finished
                         // break this loop to see if there is data in buffer
+
+                        if (_line_delimiter.size() > 1) {
+                            // We have reached the end, and at code A, for the multi-byte line separator,
+                            // we have not set the offset. But in some cases, there is no line delimiter in the last line,
+                            // so here we set the offset to the end of the output buffer to ensure that the last line can be read correctly.
+                            offset = output_buf_read_remaining();
+                        }
                         break;
                     }
                 }
