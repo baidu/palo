@@ -17,7 +17,7 @@
 
 package org.apache.doris.task;
 
-import org.apache.doris.analysis.ColumnSeparator;
+import org.apache.doris.analysis.Separator;
 import org.apache.doris.analysis.Expr;
 import org.apache.doris.analysis.ImportColumnDesc;
 import org.apache.doris.analysis.PartitionNames;
@@ -49,5 +49,6 @@ public interface LoadTaskInfo {
     public List<ImportColumnDesc> getColumnExprDescs();
     public boolean isStrictMode();
     public Expr getWhereExpr();
-    public ColumnSeparator getColumnSeparator();
+    public Separator getColumnSeparator();
+    public Separator getLineDelimiter();
 }

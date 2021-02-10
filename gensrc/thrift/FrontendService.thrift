@@ -583,6 +583,7 @@ struct TStreamLoadPutRequest {
     30: optional bool num_as_string
     31: optional bool fuzzy_parse
     32: optional string auth_code_uuid
+    33: optional string line_delimiter
 }
 
 struct TStreamLoadPutResult {
