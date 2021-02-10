@@ -59,7 +59,7 @@ public class OutFileClause {
         RESULT_COL_TYPES.add(PrimitiveType.VARCHAR);
     }
 
-    private static final String LOCAL_FILE_PREFIX = "file:///";
+    public static final String LOCAL_FILE_PREFIX = "file:///";
     private static final String BROKER_PROP_PREFIX = "broker.";
     private static final String PROP_BROKER_NAME = "broker.name";
     private static final String PROP_COLUMN_SEPARATOR = "column_separator";
