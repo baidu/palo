@@ -21,6 +21,8 @@
 
 #include "exec/hash_table.hpp"
 #include "exprs/expr.h"
+#include "exprs/expr_context.h"
+#include "exprs/in_predicate.h"
 #include "exprs/runtime_filter.h"
 #include "exprs/slot_ref.h"
 #include "gen_cpp/PlanNodes_types.h"
