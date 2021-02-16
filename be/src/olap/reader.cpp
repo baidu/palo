@@ -17,6 +17,7 @@
 
 #include "olap/reader.h"
 
+#include <boost/algorithm/string/case_conv.hpp>
 #include <sstream>
 #include <unordered_set>
 
@@ -721,6 +722,7 @@ ColumnPredicate* Reader::_parse_to_predicate(const TCondition& condition, bool o
     }
     const TabletColumn& column = _tablet->tablet_schema().column(index);
     ColumnPredicate* predicate = nullptr;
+
     if ((condition.condition_op == "*=" || condition.condition_op == "!*=" || condition.condition_op == "=" || condition.condition_op == "!=") && condition.condition_values.size() == 1) {
         predicate = condition.condition_op == "*=" || condition.condition_op == "=" ? _new_eq_pred(column, index, condition.condition_values[0], opposite) :
                 _new_ne_pred(column, index, condition.condition_values[0], opposite);
@@ -890,8 +892,8 @@ ColumnPredicate* Reader::_parse_to_predicate(const TCondition& condition, bool o
         default:
             break;
         }
-    } else if (condition.condition_op == "is") {
-        predicate = new NullPredicate(index, condition.condition_values[0] == "null", opposite);
+    } else if (boost::to_lower_copy(condition.condition_op) == "is") {
+        predicate = new NullPredicate(index, boost::to_lower_copy(condition.condition_values[0]) == "null", opposite);
     }
 
     return predicate;
