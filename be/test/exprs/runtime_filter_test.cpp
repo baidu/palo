@@ -20,6 +20,7 @@
 #include <array>
 #include <memory>
 
+#include "exprs/expr_context.h"
 #include "exprs/slot_ref.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
