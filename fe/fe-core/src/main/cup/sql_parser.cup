@@ -293,6 +293,7 @@ nonterminal StatementBase stmt, show_stmt, show_param, help_stmt, load_stmt,
     import_columns_stmt, import_delete_on_stmt, import_sequence_stmt, import_where_stmt, install_plugin_stmt, uninstall_plugin_stmt,
     import_preceding_filter_stmt;
 
+nonterminal String transaction_label;
 nonterminal ImportColumnDesc import_column_desc;
 nonterminal List<ImportColumnDesc> import_column_descs;
 
@@ -4604,9 +4605,13 @@ truncate_stmt ::=
     ;
 
 transaction_stmt ::=
-    KW_BEGIN opt_work:work
+    KW_BEGIN
     {:
         RESULT = new TransactionBeginStmt();
+    :}
+    | KW_BEGIN KW_WITH KW_LABEL transaction_label:label
+    {:
+        RESULT = new TransactionBeginStmt(label);
     :}
     | KW_COMMIT opt_work opt_chain opt_release
     {:
@@ -4615,6 +4620,17 @@ transaction_stmt ::=
     | KW_ROLLBACK opt_work opt_chain opt_release
     {:
         RESULT = new TransactionRollbackStmt();
+    :}
+    ;
+
+transaction_label ::=
+    /* empty */
+    {:
+        RESULT = null;
+    :}
+    | ident:label
+    {:
+        RESULT = label;
     :}
     ;
 

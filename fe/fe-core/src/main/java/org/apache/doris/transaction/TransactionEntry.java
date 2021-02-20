@@ -31,6 +31,7 @@ public class TransactionEntry {
     private List<String> dataToSend = new ArrayList<>();
     private Table table = null;
     private long rowsInTransaction = 0;
+    private String label = "";
 
     public Backend getBackend() {
         return backend;
@@ -82,5 +83,13 @@ public class TransactionEntry {
 
     public void setRowsInTransaction(long rowsInTransaction) {
         this.rowsInTransaction = rowsInTransaction;
+    }
+
+    public String getLabel() {
+        return label;
+    }
+
+    public void setLabel(String label) {
+        this.label = label;
     }
 }

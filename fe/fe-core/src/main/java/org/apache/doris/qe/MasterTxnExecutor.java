@@ -23,7 +23,6 @@ import org.apache.doris.thrift.TLoadTxnBeginRequest;
 import org.apache.doris.thrift.TLoadTxnBeginResult;
 import org.apache.doris.thrift.TNetworkAddress;
 import org.apache.doris.thrift.TStatusCode;
-import org.apache.doris.thrift.TTxnParams;
 import org.apache.doris.thrift.TWaitingTxnStatusRequest;
 import org.apache.doris.thrift.TWaitingTxnStatusResult;
 import org.apache.doris.transaction.TransactionStatus;
@@ -101,17 +100,15 @@ public class MasterTxnExecutor {
         }
     }
 
-    public TransactionStatus getWaitingTxnStatus(TTxnParams txnConf) throws TException {
+    public TransactionStatus getWaitingTxnStatus(TWaitingTxnStatusRequest request) throws TException {
         TNetworkAddress thriftAddress = getMasterAddress();
 
         FrontendService.Client client = getClient(thriftAddress);
 
         LOG.info("Send waiting transaction status {} to Master {}", ctx.getStmtId(), thriftAddress);
 
-        TWaitingTxnStatusRequest request = new TWaitingTxnStatusRequest();
         boolean isReturnToPool = false;
         try {
-            request.setDbId(txnConf.getDbId()).setTxnId(txnConf.getTxnId());
             TWaitingTxnStatusResult result = client.waitingTxnStatus(request);
             isReturnToPool = true;
             if (result.getStatus().getStatusCode() != TStatusCode.OK) {

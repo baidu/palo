@@ -1047,8 +1047,7 @@ public class FrontendServiceImpl implements FrontendService.Iface {
         TWaitingTxnStatusResult result = new TWaitingTxnStatusResult();
         result.setStatus(new TStatus());
         try {
-            TransactionStatus txnStatus = Catalog.getCurrentGlobalTransactionMgr()
-                    .getWaitingTxnStatus(request.getDbId(), request.getTxnId());
+            TransactionStatus txnStatus = Catalog.getCurrentGlobalTransactionMgr().getWaitingTxnStatus(request);
             result.setTxnStatusId(txnStatus.value());
             result.status.setStatusCode(TStatusCode.OK);
         } catch (TimeoutException e) {

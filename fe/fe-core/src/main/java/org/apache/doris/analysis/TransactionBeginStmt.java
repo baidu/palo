@@ -17,6 +17,29 @@
 
 package org.apache.doris.analysis;
 
+import org.apache.doris.common.AnalysisException;
+import org.apache.doris.common.UserException;
+import org.apache.doris.common.util.DebugUtil;
+import org.apache.doris.transaction.TransactionEntry;
+
 public class TransactionBeginStmt extends TransactionStmt {
+    private String label = null;
+    public TransactionBeginStmt() {
+        this.label = "";
+    }
+    public TransactionBeginStmt(final String label) {
+        this.label = label;
+    }
+    @Override
+    public void analyze(Analyzer analyzer) throws AnalysisException, UserException {
+        if (label == null || label.isEmpty()) {
+            label = "txn_insert_" + DebugUtil.printId(analyzer.getContext().queryId());
+        }
+        if (analyzer.getContext().getTxnEntry() == null) {
+            analyzer.getContext().setTxnEntry(new TransactionEntry());
+        }
+        analyzer.getContext().getTxnEntry().setLabel(label);
+        super.analyze(analyzer);
+    }
 
 }

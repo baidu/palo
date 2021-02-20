@@ -17,7 +17,6 @@
 
 package org.apache.doris.qe;
 
-import com.google.common.collect.Maps;
 import org.apache.doris.analysis.Analyzer;
 import org.apache.doris.analysis.CreateTableAsSelectStmt;
 import org.apache.doris.analysis.DdlStmt;
@@ -50,7 +49,6 @@ import org.apache.doris.catalog.Database;
 import org.apache.doris.catalog.OlapTable;
 import org.apache.doris.catalog.PrimitiveType;
 import org.apache.doris.catalog.ScalarType;
-import org.apache.doris.catalog.Table;
 import org.apache.doris.catalog.Table;
 import org.apache.doris.catalog.Table.TableType;
 import org.apache.doris.catalog.Type;
@@ -110,6 +108,7 @@ import org.apache.doris.thrift.TStatusCode;
 import org.apache.doris.thrift.TStreamLoadPutRequest;
 import org.apache.doris.thrift.TTxnParams;
 import org.apache.doris.thrift.TUniqueId;
+import org.apache.doris.thrift.TWaitingTxnStatusRequest;
 import org.apache.doris.transaction.TabletCommitInfo;
 import org.apache.doris.transaction.TransactionCommitFailedException;
 import org.apache.doris.transaction.TransactionEntry;
@@ -118,6 +117,7 @@ import org.apache.doris.transaction.TransactionStatus;
 
 import com.google.common.base.Strings;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -849,14 +849,14 @@ public class StmtExecutor {
         plannerProfile.setQueryFetchResultFinishTime();
     }
 
-    private TransactionStatus getWaitingTxnStatus(TTxnParams txnConf) throws Exception {
+    private TransactionStatus getWaitingTxnStatus(TWaitingTxnStatusRequest request) throws Exception {
         TransactionStatus txnStatus = null;
         if (Catalog.getCurrentCatalog().isMaster()) {
             txnStatus = Catalog.getCurrentGlobalTransactionMgr()
-                    .getWaitingTxnStatus(txnConf.getDbId(), txnConf.getTxnId());
+                    .getWaitingTxnStatus(request);
         } else {
             MasterTxnExecutor masterTxnExecutor = new MasterTxnExecutor(context);
-            txnStatus = masterTxnExecutor.getWaitingTxnStatus(txnConf);
+            txnStatus = masterTxnExecutor.getWaitingTxnStatus(request);
         }
         return txnStatus;
     }
@@ -876,9 +876,16 @@ public class StmtExecutor {
             }
             TTxnParams txnParams = new TTxnParams();
             txnParams.setNeedTxn(true).setThriftRpcTimeoutMs(5000).setTxnId(-1).setDb("").setTbl("");
-            TransactionEntry txnEntry = new TransactionEntry();
+            if (context.getTxnEntry() == null) {
+                context.setTxnEntry(new TransactionEntry());
+            }
+            TransactionEntry txnEntry = context.getTxnEntry();
             txnEntry.setTxnConf(txnParams);
-            context.setTxnEntry(txnEntry);
+            StringBuilder sb = new StringBuilder();
+            sb.append("{'label':'").append(context.getTxnEntry().getLabel()).append("', 'status':'")
+                    .append(TransactionStatus.PREPARE.name());
+            sb.append("', 'txnId':'").append("'").append("}");
+            context.getState().setOk(0, 0, sb.toString());
         } else if (parsedStmt instanceof TransactionCommitStmt) {
             if (!context.isTxnModel()) {
                 LOG.info("No transaction to commit");
@@ -898,12 +905,21 @@ public class StmtExecutor {
                 }
 
                 BackendServiceProxy.getInstance().commitForTxn(fragmentInstanceId, context.getTxnEntry().getBackend());
-                TransactionStatus txnStatus = getWaitingTxnStatus(txnConf);
+                TWaitingTxnStatusRequest request = new TWaitingTxnStatusRequest();
+                request.setDbId(txnConf.getDbId()).setTxnId(txnConf.getTxnId());
+                request.setLabelIsSet(false);
+                request.setTxnIdIsSet(true);
+                TransactionStatus txnStatus = getWaitingTxnStatus(request);
                 if (txnStatus == TransactionStatus.COMMITTED) {
                     throw new AnalysisException("transaction commit successfully, BUT data will be visible later.");
                 } else if (txnStatus != TransactionStatus.VISIBLE) {
                     throw new AnalysisException("commit failed, rollback.");
                 }
+                StringBuilder sb = new StringBuilder();
+                sb.append("{'label':'").append(context.getTxnEntry().getLabel()).append("', 'status':'")
+                        .append(txnStatus.name()).append("', 'txnId':'")
+                        .append(context.getTxnEntry().getTxnConf().getTxnId()).append("'").append("}");
+                context.getState().setOk(0, 0, sb.toString());
             } catch (Exception e) {
                 throw new AnalysisException(e.getMessage());
             } finally {
@@ -922,6 +938,11 @@ public class StmtExecutor {
             try {
                 BackendServiceProxy.getInstance().rollbackForTxn(
                         fragmentInstanceId, context.getTxnEntry().getBackend());
+                StringBuilder sb = new StringBuilder();
+                sb.append("{'label':'").append(context.getTxnEntry().getLabel()).append("', 'status':'")
+                        .append(TransactionStatus.ABORTED.name()).append("', 'txnId':'")
+                        .append(context.getTxnEntry().getTxnConf().getTxnId()).append("'").append("}");
+                context.getState().setOk(0, 0, sb.toString());
             } catch (Exception e) {
                 throw new AnalysisException(e.getMessage());
             } finally {
@@ -989,7 +1010,7 @@ public class StmtExecutor {
         }
         txnEntry.setTable(tblObj);
         txnConf.setDbId(dbObj.getId()).setTbl(tblName).setDb(dbName);
-        String label = "txn_insert_" + DebugUtil.printId(context.queryId());
+        String label = txnEntry.getLabel();
         if (Catalog.getCurrentCatalog().isMaster()) {
             long txnId = Catalog.getCurrentGlobalTransactionMgr().beginTransaction(
                     txnConf.getDbId(), Lists.newArrayList(tblObj.getId()),
@@ -1125,6 +1146,7 @@ public class StmtExecutor {
 
         long createTime = System.currentTimeMillis();
         Throwable throwable = null;
+        long txnId = -1;
         String label = "";
         long loadedRows = 0;
         int filteredRows = 0;
@@ -1138,6 +1160,8 @@ public class StmtExecutor {
             }
             txnStatus = TransactionStatus.PREPARE;
             loadedRows = executeForTxn(insertStmt);
+            label = context.getTxnEntry().getLabel();
+            txnId = context.getTxnEntry().getTxnConf().getTxnId();
         } else {
             label = insertStmt.getLabel();
             LOG.info("Do insert [{}] with query id: {}", label, DebugUtil.printId(context.queryId()));
@@ -1252,13 +1276,14 @@ public class StmtExecutor {
                 LOG.warn("Record info of insert load with error {}", e.getMessage(), e);
                 errMsg = "Record info of insert load with error " + e.getMessage();
             }
+            txnId = insertStmt.getTransactionId();
         }
 
         // {'label':'my_label1', 'status':'visible', 'txnId':'123'}
         // {'label':'my_label1', 'status':'visible', 'txnId':'123' 'err':'error messages'}
         StringBuilder sb = new StringBuilder();
         sb.append("{'label':'").append(label).append("', 'status':'").append(txnStatus.name());
-        sb.append("', 'txnId':'").append(insertStmt.getTransactionId()).append("'");
+        sb.append("', 'txnId':'").append(txnId).append("'");
         if (!Strings.isNullOrEmpty(errMsg)) {
             sb.append(", 'err':'").append(errMsg).append("'");
         }

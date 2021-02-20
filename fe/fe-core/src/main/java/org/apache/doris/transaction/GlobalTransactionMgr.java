@@ -31,6 +31,7 @@ import org.apache.doris.common.io.Writable;
 import org.apache.doris.common.util.MetaLockUtils;
 import org.apache.doris.persist.EditLog;
 import org.apache.doris.thrift.TUniqueId;
+import org.apache.doris.thrift.TWaitingTxnStatusRequest;
 import org.apache.doris.transaction.TransactionState.LoadJobSourceType;
 import org.apache.doris.transaction.TransactionState.TxnCoordinator;
 
@@ -151,7 +152,16 @@ public class GlobalTransactionMgr implements Writable {
             LOG.warn("Get transaction status by label " + label + " failed", e);
             return TransactionStatus.UNKNOWN;
         }
+    }
 
+    public Long getTransactionId(long dbId, String label) {
+        try {
+            DatabaseTransactionMgr dbTransactionMgr = getDatabaseTransactionMgr(dbId);
+            return dbTransactionMgr.getTransactionId(label);
+        } catch (AnalysisException e) {
+            LOG.warn("Get transaction id by label " + label + " failed", e);
+            return null;
+        }
     }
 
     public void commitTransaction(long dbId, List<Table> tableList, long transactionId, List<TabletCommitInfo> tabletCommitInfos)
@@ -469,20 +479,28 @@ public class GlobalTransactionMgr implements Writable {
         dbTransactionMgr.updateDatabaseUsedQuotaData(usedQuotaDataBytes);
     }
 
-    public TransactionStatus getWaitingTxnStatus(long dbId, long txnId) throws AnalysisException, TimeoutException {
+    public TransactionStatus getWaitingTxnStatus(TWaitingTxnStatusRequest request) throws AnalysisException, TimeoutException {
+        long dbId = request.getDbId();
         int commitTimeoutSec = Config.commit_timeout_second;
         for (int i = 0; i < commitTimeoutSec; ++i) {
             Database db = Catalog.getCurrentCatalog().getDb(dbId);
             if (db == null) {
                 throw new AnalysisException("invalid db id: " + dbId);
             }
-            TransactionState txnState = Catalog.getCurrentGlobalTransactionMgr().
-                    getTransactionState(dbId, txnId);
-            if (txnState == null) {
-                throw new AnalysisException("txn does not exist: " + txnId);
+            TransactionStatus txnStatus = null;
+            if (request.isSetTxnId()) {
+                long txnId = request.getTxnId();
+                TransactionState txnState = Catalog.getCurrentGlobalTransactionMgr().
+                        getTransactionState(dbId, txnId);
+                if (txnState == null) {
+                    throw new AnalysisException("txn does not exist: " + txnId);
+                }
+                txnStatus = txnState.getTransactionStatus();
+            } else {
+                txnStatus = getLabelState(dbId, request.getLabel());
             }
-            if (txnState.getTransactionStatus().isFinalStatus()) {
-                return txnState.getTransactionStatus();
+            if (txnStatus == TransactionStatus.UNKNOWN || txnStatus.isFinalStatus()) {
+                return txnStatus;
             }
             try {
                 Thread.sleep(1000L);
@@ -492,4 +510,5 @@ public class GlobalTransactionMgr implements Writable {
         }
         throw new TimeoutException("Operation is timeout");
     }
+
 }
