@@ -299,6 +299,14 @@ public class OlapScanNode extends ScanNode {
     @Override
     public void finalize(Analyzer analyzer) throws UserException {
         LOG.debug("OlapScanNode get scan range locations. Tuple: {}", desc);
+        /**
+         * If JoinReorder is turned on, it will be calculated init(), and this value is not accurate.
+         * In the following logic, cardinality will be accurately calculated again.
+         * So here we need to reset the value of cardinality.
+         */
+        if (analyzer.safeIsEnableJoinReorderBasedCost()) {
+            cardinality = 0;
+        }
         try {
             getScanRangeLocations();
         } catch (AnalysisException e) {
