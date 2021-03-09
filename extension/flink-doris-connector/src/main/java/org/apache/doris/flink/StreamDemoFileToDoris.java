@@ -54,22 +54,13 @@ public class StreamDemoFileToDoris {
 
         // get the execution environment
         final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-        //设置并行度,为了方便测试，查看消息的顺序，这里设置为1，可以更改为多并行度
         env.setParallelism(1);
-        //checkpoint的设置
-        //每隔30s进行启动一个检查点【设置checkpoint的周期】
         env.enableCheckpointing(30000);
-        //设置模式为：exactly_one，仅一次语义
         env.getCheckpointConfig().setCheckpointingMode(CheckpointingMode.EXACTLY_ONCE);
-        //确保检查点之间有1s的时间间隔【checkpoint最小间隔】
         env.getCheckpointConfig().setMinPauseBetweenCheckpoints(1000);
-        //检查点必须在10s之内完成，或者被丢弃【checkpoint超时时间】
         env.getCheckpointConfig().setCheckpointTimeout(30000);
-        //同一时间只允许进行一次检查点
         env.getCheckpointConfig().setMaxConcurrentCheckpoints(1);
-        //表示一旦Flink程序被cancel后，会保留checkpoint数据，以便根据实际需要恢复到指定的checkpoint
         env.getCheckpointConfig().enableExternalizedCheckpoints(CheckpointConfig.ExternalizedCheckpointCleanup.RETAIN_ON_CANCELLATION);
-        //设置statebackend,将检查点保存在hdfs上面，默认保存在内存中。这里先保存到本地
         env.setStateBackend(new FsStateBackend("file:///D:/workspace/files/flink/checkpoint"));
 
         DataStream<String> textStream = env.readFileStream("file:///D:/workspace/files/flink/testsourefile/file_for_insert.txt", 1000, REPROCESS_WITH_APPENDED);
