@@ -119,6 +119,8 @@ visible_functions = [
         '15FunctionContextENS2_18FunctionStateScopeE'],
     [['now', 'current_timestamp', 'localtime', 'localtimestamp'], 'DATETIME', [],
         '_ZN5doris18TimestampFunctions3nowEPN9doris_udf15FunctionContextE'],
+    [['now', 'current_timestamp', 'localtime', 'localtimestamp'], 'DATETIME', ['INT'],
+        '_ZN5doris18TimestampFunctions3nowEPN9doris_udf15FunctionContextERKNS1_6IntValE'],
     [['curtime', 'current_time'], 'TIME', [],
         '_ZN5doris18TimestampFunctions7curtimeEPN9doris_udf15FunctionContextE'],
     [['curdate', 'current_date'], 'DATE', [],

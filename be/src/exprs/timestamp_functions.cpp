@@ -805,6 +805,12 @@ DateTimeVal TimestampFunctions::now(FunctionContext* context) {
     return return_val;
 }
 
+// Doris does not yet support a time granularity that is more accurate than seconds.
+// The parameter int_val is just for supporting now(6) function call, but it only return now(0).
+DateTimeVal TimestampFunctions::now(FunctionContext* context, const IntVal& int_val) {
+    return now(context);
+}
+
 DoubleVal TimestampFunctions::curtime(FunctionContext* context) {
     DateTimeValue dtv;
     if (!dtv.from_unixtime(context->impl()->state()->timestamp_ms() / 1000,

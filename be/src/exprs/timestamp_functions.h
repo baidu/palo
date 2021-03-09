@@ -373,6 +373,7 @@ public:
                                                     const doris_udf::DateTimeVal& ts_val,
                                                     const doris_udf::IntVal& count, bool is_add);
     static doris_udf::DateTimeVal now(doris_udf::FunctionContext* context);
+    static doris_udf::DateTimeVal now(doris_udf::FunctionContext* context, const doris_udf::IntVal& int_val);
     static doris_udf::DoubleVal curtime(doris_udf::FunctionContext* context);
     static doris_udf::DateTimeVal curdate(doris_udf::FunctionContext* context);
     static doris_udf::DateTimeVal utc_timestamp(doris_udf::FunctionContext* context);
