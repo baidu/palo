@@ -73,16 +73,10 @@ SET GLOBAL exec_mem_limit = 137438953472
 * `batch_size`
 * `parallel_fragment_exec_instance_num`
 * `parallel_exchange_instance_num`
-<<<<<<< HEAD
 * `allow_partition_column_nullable`
-<<<<<<< HEAD
 * `fold_constant_by_be`
-=======
 * `enable_fold_constant_by_be`
->>>>>>> 26ccfb414... [Internal][#doris-887]Bring back calculate constant expression by Backends in all parts of sql stmt.
-=======
 * `insert_visible_timeout_ms`
->>>>>>> 05631cfa4... [Config] Add publish timeout param when exec insert (#5170)
 
 只支持全局生效的变量包括：
 
@@ -391,3 +385,9 @@ SELECT /*+ SET_VAR(query_timeout = 1) */ sleep(3);
 * `insert_visible_timeout_ms`
 
     在执行insert语句时，导入动作(查询和插入)完成后，还需要等待事务提交，使数据可见。此参数控制等待数据可见的超时时间，默认为10000，最小为1000。
+    
+*  `enable_exchange_node_parallel_merge`
+
+    在一个排序的查询之中，一个上层节点接收下层节点有序数据时，会在exchange node上进行对应的排序来保证最终的数据是有序的。但是单线程进行多路数据归并时，如果数据量过大，会导致exchange node的单点的归并瓶颈。
+
+    Doris在这部分进行了优化处理，如果下层的数据节点过多。exchange node会启动多线程进行并行归并来加速排序过程。该参数默认为False，即表示 exchange node 不采取并行的归并排序，来减少额外的CPU和内存消耗。
