@@ -73,7 +73,7 @@ public class BackendServiceProxy {
     // TODO(zc): use TNetworkAddress,
     private Map<TNetworkAddress, PBackendService> serviceMap;
 
-    private static BackendServiceProxy INSTANCE;
+    private static volatile BackendServiceProxy INSTANCE;
 
     static {
         int javaRuntimeVersion = JdkUtils.getJavaVersionAsInteger(System.getProperty("java.version"));
@@ -90,7 +90,11 @@ public class BackendServiceProxy {
 
     public static BackendServiceProxy getInstance() {
         if (INSTANCE == null) {
-            INSTANCE = new BackendServiceProxy();
+            synchronized (BackendServiceProxy.class) {
+                if (INSTANCE == null) {
+                    INSTANCE = new BackendServiceProxy();
+                }
+            }
         }
         return INSTANCE;
     }
