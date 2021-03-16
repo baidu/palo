@@ -100,11 +100,13 @@ inline void HashTable::add_to_bucket(Bucket* bucket, Node* node) {
 
     node->_next = bucket->_node;
     bucket->_node = node;
+    bucket->_size++;
 }
 
 inline void HashTable::move_node(Bucket* from_bucket, Bucket* to_bucket, Node* node,
                                  Node* previous_node) {
     Node* next_node = node->_next;
+    from_bucket->_size--;
 
     if (previous_node != NULL) {
         previous_node->_next = next_node;
@@ -118,6 +120,24 @@ inline void HashTable::move_node(Bucket* from_bucket, Bucket* to_bucket, Node* n
     }
 
     add_to_bucket(to_bucket, node);
+}
+
+inline std::pair<int64_t, int64_t> HashTable::minmax_node() {
+    bool has_value = false;
+    int64_t min_size = std::numeric_limits<int64_t>::max();
+    int64_t max_size = std::numeric_limits<int64_t>::min();
+    for (const auto bucket : _buckets) {
+        int64_t counter = bucket._size;
+        if (counter > 0) {
+            has_value = true;
+            min_size = std::min(counter, min_size);
+            max_size = std::max(counter, max_size);
+        }
+    }
+    if (!has_value) {
+        return std::make_pair(0, 0);
+    }
+    return std::make_pair(min_size, max_size);
 }
 
 template <bool check_match>

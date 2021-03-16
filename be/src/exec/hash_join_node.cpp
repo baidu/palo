@@ -106,7 +106,8 @@ Status HashJoinNode::prepare(RuntimeState* state) {
     _probe_rows_counter = ADD_COUNTER(runtime_profile(), "ProbeRows", TUnit::UNIT);
     _hash_tbl_load_factor_counter =
             ADD_COUNTER(runtime_profile(), "LoadFactor", TUnit::DOUBLE_VALUE);
-
+    _hash_table_list_min_size = ADD_COUNTER(runtime_profile(), "HashTableMinList", TUnit::UNIT);
+    _hash_table_list_max_size = ADD_COUNTER(runtime_profile(), "HashTableMaxList", TUnit::UNIT);
     // build and probe exprs are evaluated in the context of the rows produced by our
     // right and left children, respectively
     RETURN_IF_ERROR(
@@ -200,6 +201,9 @@ Status HashJoinNode::construct_hash_table(RuntimeState* state) {
         COUNTER_SET(_build_rows_counter, _hash_tbl->size());
         COUNTER_SET(_build_buckets_counter, _hash_tbl->num_buckets());
         COUNTER_SET(_hash_tbl_load_factor_counter, _hash_tbl->load_factor());
+        auto node = _hash_tbl->minmax_node();
+        COUNTER_SET(_hash_table_list_min_size, node.first);
+        COUNTER_SET(_hash_table_list_max_size, node.second);
     });
     while (true) {
         RETURN_IF_CANCELLED(state);

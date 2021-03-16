@@ -170,6 +170,8 @@ public:
     // just the build row addresses.
     std::string debug_string(bool skip_empty, const RowDescriptor* build_desc);
 
+    inline std::pair<int64_t,int64_t> minmax_node();
+
     // stl-like iterator interface.
     class Iterator {
     public:
@@ -254,8 +256,9 @@ private:
     };
 
     struct Bucket {
-        Bucket() { _node = nullptr; }
+        Bucket() : _node(nullptr), _size(0) {}
         Node* _node;
+        uint64_t _size;
     };
 
     // Returns the next non-empty bucket and updates idx to be the index of that bucket.

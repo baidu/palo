@@ -139,6 +139,8 @@ private:
     RuntimeProfile::Counter* _probe_rows_counter;    // num probe rows
     RuntimeProfile::Counter* _build_buckets_counter; // num buckets in hash table
     RuntimeProfile::Counter* _hash_tbl_load_factor_counter;
+    RuntimeProfile::Counter* _hash_table_list_min_size;
+    RuntimeProfile::Counter* _hash_table_list_max_size;
 
     // Supervises ConstructHashTable in a separate thread, and
     // returns its status in the promise parameter.
