@@ -39,7 +39,6 @@ HashJoinNode::HashJoinNode(ObjectPool* pool, const TPlanNode& tnode, const Descr
           _join_op(tnode.hash_join_node.join_op),
           _probe_counter(0),
           _probe_eos(false),
-          _process_build_batch_fn(NULL),
           _process_probe_batch_fn(NULL),
           _anti_join_last_pos(NULL) {
     _match_all_probe =
@@ -209,11 +208,7 @@ Status HashJoinNode::construct_hash_table(RuntimeState* state) {
         RETURN_IF_CANCELLED(state);
         bool eos = true;
         RETURN_IF_ERROR(child(1)->get_next(state, &build_batch, &eos));
-        // take ownership of tuple data of build_batch
-        _build_pool->acquire_data(build_batch.tuple_data_pool(), false);
-        RETURN_IF_LIMIT_EXCEEDED(state, "Hash join, while constructing the hash table.");
-        process_build_batch(&build_batch);
-
+        RETURN_IF_ERROR(process_build_batch(state, &build_batch));
         VLOG_ROW << _hash_tbl->debug_string(true, &child(1)->row_desc());
 
         build_batch.reset();

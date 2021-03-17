@@ -118,11 +118,6 @@ private:
     // This should be the same size as the probe tuple row.
     int _result_tuple_row_size;
 
-    // Function declaration for codegen'd function.  Signature must match
-    // HashJoinNode::ProcessBuildBatch
-    typedef void (*ProcessBuildBatchFn)(HashJoinNode*, RowBatch*);
-    ProcessBuildBatchFn _process_build_batch_fn;
-
     // HashJoinNode::process_probe_batch() exactly
     typedef int (*ProcessProbeBatchFn)(HashJoinNode*, RowBatch*, RowBatch*, int);
     // Jitted ProcessProbeBatch function pointer.  Null if codegen is disabled.
@@ -165,7 +160,7 @@ private:
     int process_probe_batch(RowBatch* out_batch, RowBatch* probe_batch, int max_added_rows);
 
     // Construct the build hash table, adding all the rows in 'build_batch'
-    void process_build_batch(RowBatch* build_batch);
+    Status process_build_batch(RuntimeState* state, RowBatch* build_batch);
 
     // Write combined row, consisting of probe_row and build_row, to out_row.
     // This is replaced by codegen.

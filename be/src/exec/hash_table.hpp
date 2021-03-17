@@ -22,6 +22,57 @@
 
 namespace doris {
 
+inline bool HashTable::emplace_key(TupleRow* row, TupleRow** dest_addr) {
+    bool has_nulls = eval_build_row(row);
+
+    if (!_stores_nulls && has_nulls) {
+        return false;
+    }
+
+    uint32_t hash = hash_current_row();
+    int64_t bucket_idx = hash & (_num_buckets - 1);
+
+    Bucket* bucket = &_buckets[bucket_idx];
+    Node* node = bucket->_node;
+
+    bool will_insert = true;
+
+    if (node == nullptr) {
+        will_insert = true;
+    } else {
+        Node* last_node = node;
+        while (node != nullptr) {
+            if (node->_hash == hash && equals(node->data())) {
+                will_insert = false;
+                break;
+            }
+            last_node = node;
+            node = node->_next;
+        }
+        node = last_node;
+    }
+    if (will_insert) {
+        if (_num_filled_buckets > _num_buckets_till_resize) {
+            resize_buckets(_num_buckets * 2);
+        }
+        if (_current_used == _current_capacity) {
+            grow_node_array();
+        }
+        Node* alloc_node =
+                reinterpret_cast<Node*>(_current_nodes + _node_byte_size * _current_used++);
+        ++_num_nodes;
+        TupleRow* data = alloc_node->data();
+        *dest_addr = data;
+        alloc_node->_hash = hash;
+        if (node == nullptr) {
+            add_to_bucket(&_buckets[bucket_idx], alloc_node);
+        } else {
+            node->_next = alloc_node;
+        }
+    }
+    return will_insert;
+}
+
 inline HashTable::Iterator HashTable::find(TupleRow* probe_row, bool probe) {
     bool has_nulls = probe ? eval_probe_row(probe_row) : eval_build_row(probe_row);
 
