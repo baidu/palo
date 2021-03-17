@@ -23,10 +23,10 @@ import org.apache.doris.common.io.Writable;
 import org.apache.doris.common.util.PrintableMap;
 import org.apache.doris.thrift.TFileType;
 
-import com.google.common.collect.Maps;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+import com.google.common.collect.Maps;
 
 import java.io.DataInput;
 import java.io.DataOutput;
@@ -60,9 +60,14 @@ public class BrokerDesc extends StorageDesc implements Writable {
         if (this.properties == null) {
             this.properties = Maps.newHashMap();
         }
-        this.storageType = StorageBackend.StorageType.BROKER;
+        if (this.name.equals(BrokerDesc.MULTI_LOAD_BROKER)) {
+            this.storageType = StorageBackend.StorageType.LOCAL;
+        } else {
+            this.storageType = StorageBackend.StorageType.BROKER;
+        }
         tryConvertToS3();
     }
+
     public BrokerDesc(String name, StorageBackend.StorageType storageType, Map<String, String> properties) {
         this.name = name;
         this.properties = properties;

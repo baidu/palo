@@ -303,7 +303,7 @@ public class StmtExecutor {
 
             if (!context.isTxnModel()) {
                 // analyze this query
-                analyze(sessionVariable.toThrift());
+                analyze(context.getSessionVariable().toThrift());
                 if (isForwardToMaster()) {
                     forwardToMaster();
                     if (masterOpExecutor != null && masterOpExecutor.getQueryId() != null) {

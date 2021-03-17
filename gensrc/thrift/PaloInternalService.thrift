@@ -141,7 +141,7 @@ struct TQueryOptions {
   // whether enable runtime filter
   32: optional bool enable_runtime_filter_mode = true;
   // whether enable parallel merge in exchange node
-  32: optional bool enable_enable_exchange_node_parallel_merge = false;
+  33: optional bool enable_enable_exchange_node_parallel_merge = false;
 }
     
 
