@@ -34,7 +34,7 @@ public class ProfileTreePrinter {
         SimpleTreeNode rootNode = buildNode(root, PrintLevel.FRAGMENT);
         StringBuilder sb = new StringBuilder();
         new TraditionalTreePrinter().print(new BorderTreeNodeDecorator(rootNode), sb);
-        return sb.toString();
+        return "\n" + sb.toString();
     }
 
     // Instance tree will print the details of the tree of a single instance
@@ -42,7 +42,7 @@ public class ProfileTreePrinter {
         SimpleTreeNode rootNode = buildNode(root, PrintLevel.INSTANCE);
         StringBuilder sb = new StringBuilder();
         new TraditionalTreePrinter().print(new BorderTreeNodeDecorator(rootNode), sb);
-        return sb.toString();
+        return "\n" + sb.toString();
     }
 
     private static SimpleTreeNode buildNode(ProfileTreeNode profileNode, PrintLevel level) {

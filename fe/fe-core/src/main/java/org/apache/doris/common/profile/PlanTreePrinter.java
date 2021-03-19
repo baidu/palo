@@ -27,7 +27,7 @@ public class PlanTreePrinter {
         SimpleTreeNode rootNode = buildNode(root);
         StringBuilder sb = new StringBuilder();
         new TraditionalTreePrinter().print(new BorderTreeNodeDecorator(rootNode), sb);
-        return sb.toString();
+        return "\n" + sb.toString();
     }
 
     private static SimpleTreeNode buildNode(PlanTreeNode planNode) {

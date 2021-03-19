@@ -607,6 +607,11 @@ under the License.
             <artifactId>tree-printer</artifactId>
         </dependency>
 
+        <dependency>
+            <groupId>com.indvd00m.ascii.render</groupId>
+            <artifactId>ascii-render</artifactId>
+        </dependency>
+
     </dependencies>
 
     <build>

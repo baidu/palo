@@ -17,12 +17,6 @@
 
 package org.apache.doris.metric.collector;
 
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
-import lombok.Getter;
-import lombok.Setter;
 import org.apache.doris.catalog.Catalog;
 import org.apache.doris.common.Config;
 import org.apache.doris.common.DdlException;
@@ -31,9 +25,17 @@ import org.apache.doris.common.util.NetUtils;
 import org.apache.doris.persist.gson.GsonUtils;
 import org.apache.doris.system.SystemInfoService;
 
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+
 import java.net.InetSocketAddress;
 import java.util.List;
 import java.util.Map;
+
+import lombok.Getter;
+import lombok.Setter;
 
 /*
  * This class provides monitoring data for time serial chart.
@@ -52,22 +54,28 @@ import java.util.Map;
  *  }
  */
 public class Monitor {
-    private static final int DEFAULT_MONITOR_POINTS = 100;
-    static final String NODES = "nodes";
-    static final String POINT_NUM = "point_num";
+    public static final int DEFAULT_MONITOR_POINTS = 100;
+    public static final String NODES = "nodes";
+    public static final String POINT_NUM = "point_num";
     private static BDBJEMetricHandler bdbjeMetricHandler = Catalog.getCurrentCatalog().getBDBJEMetricHandler();
 
     public enum MonitorType {
-        QPS,
-        QUERY_LATENCY,
-        QUERY_ERR_RATE,
-        CONN_TOTAL,
-        TXN_STATUS,
-        BE_CPU_IDLE,
-        BE_MEM,
-        BE_DISK_IO,
-        BE_BASE_COMPACTION_SCORE,
-        BE_CUMU_COMPACTION_SCORE
+        QPS("frontend"),
+        QUERY_LATENCY("frontend"),
+        QUERY_ERR_RATE("frontend"),
+        CONN_TOTAL("frontend"),
+        TXN_STATUS("frontend"),
+        BE_CPU_IDLE("backend"),
+        BE_MEM("backend"),
+        BE_DISK_IO("backend"),
+        BE_BASE_COMPACTION_SCORE("backend"),
+        BE_CUMU_COMPACTION_SCORE("backend");
+
+        public String nodeType;
+
+        MonitorType(String nodeType) {
+            this.nodeType = nodeType;
+        }
     }
 
     // read metric from bdbje and calculate monitor.

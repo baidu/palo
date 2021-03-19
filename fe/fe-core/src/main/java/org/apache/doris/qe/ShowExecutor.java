@@ -18,6 +18,7 @@
 package org.apache.doris.qe;
 
 import org.apache.doris.analysis.AdminShowConfigStmt;
+import org.apache.doris.analysis.AdminShowMetricStmt;
 import org.apache.doris.analysis.AdminShowReplicaDistributionStmt;
 import org.apache.doris.analysis.AdminShowReplicaStatusStmt;
 import org.apache.doris.analysis.DescribeStmt;
@@ -103,7 +104,9 @@ import org.apache.doris.common.ErrorCode;
 import org.apache.doris.common.ErrorReport;
 import org.apache.doris.common.FeConstants;
 import org.apache.doris.common.MetaNotFoundException;
+import org.apache.doris.common.Pair;
 import org.apache.doris.common.PatternMatcher;
+import org.apache.doris.common.UserException;
 import org.apache.doris.common.proc.BackendsProcDir;
 import org.apache.doris.common.proc.FrontendsProcNode;
 import org.apache.doris.common.proc.LoadProcDir;
@@ -129,6 +132,8 @@ import org.apache.doris.load.LoadErrorHub.HubType;
 import org.apache.doris.load.LoadJob;
 import org.apache.doris.load.LoadJob.JobState;
 import org.apache.doris.load.routineload.RoutineLoadJob;
+import org.apache.doris.metric.collector.Monitor;
+import org.apache.doris.metric.drawer.MetricDrawer;
 import org.apache.doris.mysql.privilege.PrivPredicate;
 import org.apache.doris.system.Backend;
 import org.apache.doris.system.SystemInfoService;
@@ -276,6 +281,8 @@ public class ShowExecutor {
             handleShowQueryProfile();
         } else if (stmt instanceof ShowLoadProfileStmt) {
             handleShowLoadProfile();
+        } else if (stmt instanceof AdminShowMetricStmt) {
+            handleAdminShowMetric();
         } else {
             handleEmtpy();
         }
@@ -1736,6 +1743,29 @@ public class ShowExecutor {
         resultSet = new ShowResultSet(showStmt.getMetaData(), rows);
     }
 
+    private void handleAdminShowMetric() throws AnalysisException {
+        AdminShowMetricStmt showStmt = (AdminShowMetricStmt) stmt;
+        List<Pair<String, Integer>> hosts = showStmt.getNodeHosts();
+        List<Monitor.MonitorType> metrics = showStmt.getMonitorTypes();
+        Pair<Long, Long> timeRange = showStmt.getTimeRange();
+
+        List<List<String>> results = Lists.newArrayList();
+
+        for (Pair<String, Integer> host : hosts) {
+            List<String> row = Lists.newArrayList();
+            for (Monitor.MonitorType metric : metrics) {
+                try {
+                    String plot = MetricDrawer.draw(timeRange.first, timeRange.second, host.first + ":" + host.second,
+                            metric);
+                    row.add(plot);
+                } catch (UserException e) {
+                    throw new AnalysisException(e.getMessage());
+                }
+            }
+            results.add(row);
+        }
+        resultSet = new ShowResultSet(showStmt.getMetaData(), results);
+    }
 }
 
 

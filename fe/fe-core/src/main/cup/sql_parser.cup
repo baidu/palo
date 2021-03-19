@@ -247,7 +247,7 @@ terminal String KW_ADD, KW_ADMIN, KW_AFTER, KW_AGGREGATE, KW_ALL, KW_ALTER, KW_A
     KW_KEY, KW_KEYS, KW_KILL,
     KW_LABEL, KW_LARGEINT, KW_LAST, KW_LEFT, KW_LESS, KW_LEVEL, KW_LIKE, KW_LIMIT, KW_LINK, KW_LOAD,
     KW_LOCAL, KW_LOCATION,
-    KW_MATERIALIZED, KW_MAX, KW_MAX_VALUE, KW_MERGE, KW_MIN, KW_MINUTE, KW_MINUS, KW_MIGRATE, KW_MIGRATIONS, KW_MODIFY, KW_MONTH,
+    KW_MATERIALIZED, KW_MAX, KW_MAX_VALUE, KW_MERGE, KW_MIN, KW_MINUTE, KW_MINUS, KW_MIGRATE, KW_MIGRATIONS, KW_MODIFY, KW_MONTH, KW_METRIC,
     KW_NAME, KW_NAMES, KW_NEGATIVE, KW_NO, KW_NOT, KW_NULL, KW_NULLS,
     KW_OBSERVER, KW_OFFSET, KW_ON, KW_ONLY, KW_OPEN, KW_OR, KW_ORDER, KW_OUTER, KW_OUTFILE, KW_OVER,
     KW_PARTITION, KW_PARTITIONS, KW_PASSWORD, KW_LDAP_ADMIN_PASSWORD, KW_PATH, KW_PAUSE, KW_PIPE, KW_PRECEDING,
@@ -4633,6 +4633,14 @@ admin_stmt ::=
     {:
         RESULT = new AdminCheckTabletsStmt(tabletIds, properties);
     :}
+    | KW_ADMIN KW_SHOW KW_BACKEND KW_METRIC opt_key_value_map:kv
+    {:
+        RESULT = new AdminShowMetricStmt(AdminShowMetricStmt.NodeType.BACKEND, kv);
+    :}
+    | KW_ADMIN KW_SHOW KW_FRONTEND KW_METRIC opt_key_value_map:kv
+    {:
+        RESULT = new AdminShowMetricStmt(AdminShowMetricStmt.NodeType.FRONTEND, kv);
+    :}
     ;
 
 truncate_stmt ::=
@@ -4863,6 +4871,8 @@ keyword ::=
     | KW_MATERIALIZED:id
     {: RESULT = id; :}
     | KW_MERGE:id
+    {: RESULT = id; :}
+    | KW_METRIC:id
     {: RESULT = id; :}
     | KW_MODIFY:id
     {: RESULT = id; :}
