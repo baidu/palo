@@ -308,16 +308,6 @@ public class DistributedPlanner {
                                                 PlanFragment leftChildFragment, long perNodeMemLimit,
                                                 ArrayList<PlanFragment> fragments)
             throws UserException {
-
-        // Push down the predicates constructed by the right child when the
-        // join op is inner join or left semi join.
-        // Colocate join, Bucket Shuffle join, Broadcast join support local rumtime filter
-        // For Shuffle join, set is push down false after this code in line:475
-        if ((node.getJoinOp().isInnerJoin() || node.getJoinOp().isLeftSemiJoin()) &&
-                ConnectContext.get().getSessionVariable().enableRuntimeFilterMode()) {
-            node.setIsPushDown(true);
-        }
-
         List<String> reason = Lists.newArrayList();
         if (canColocateJoin(node, leftChildFragment, rightChildFragment, reason)) {
             node.setColocate(true, "");
@@ -385,7 +375,6 @@ public class DistributedPlanner {
             node.setChild(0, leftChildFragment.getPlanRoot());
             connectChildFragment(node, 1, leftChildFragment, rightChildFragment);
             leftChildFragment.setPlanRoot(node);
-
             return leftChildFragment;
         } else {
             node.setDistributionMode(HashJoinNode.DistributionMode.PARTITIONED);
@@ -430,8 +419,6 @@ public class DistributedPlanner {
             rightChildFragment.setDestination(rhsExchange);
             rightChildFragment.setOutputPartition(rhsJoinPartition);
 
-            // TODO: Before we support global runtime filter, only shuffle join do not enable local runtime filter
-            node.setIsPushDown(false);
             return joinFragment;
         }
     }

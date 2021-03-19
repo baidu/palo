@@ -35,7 +35,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -115,6 +117,11 @@ public class PlanFragment extends TreeNode<PlanFragment> {
     // default value is 1
     private int parallelExecNum = 1;
 
+    // The runtime filter id that produced
+    private Set<RuntimeFilterId> builderRuntimeFilterIds;
+    // The runtime filter id that is expected to be used
+    private Set<RuntimeFilterId> targetRuntimeFilterIds;
+
     /**
      * C'tor for fragment with specific partition; the output is by default broadcast.
      */
@@ -124,6 +131,8 @@ public class PlanFragment extends TreeNode<PlanFragment> {
         this.dataPartition = partition;
         this.outputPartition = DataPartition.UNPARTITIONED;
         this.transferQueryStatisticsWithEveryBatch = false;
+        this.builderRuntimeFilterIds = new HashSet<>();
+        this.targetRuntimeFilterIds = new HashSet<>();
         setParallelExecNumIfExists();
         setFragmentInPlanTree(planRoot);
     }
@@ -158,6 +167,14 @@ public class PlanFragment extends TreeNode<PlanFragment> {
 
     public void setOutputExprs(List<Expr> outputExprs) {
         this.outputExprs = Expr.cloneList(outputExprs, null);
+    }
+
+    public void setBuilderRuntimeFilterIds(RuntimeFilterId rid) {
+        this.builderRuntimeFilterIds.add(rid);
+    }
+
+    public void setTargetRuntimeFilterIds(RuntimeFilterId rid) {
+        this.targetRuntimeFilterIds.add(rid);
     }
 
     /**
@@ -305,6 +322,19 @@ public class PlanFragment extends TreeNode<PlanFragment> {
 
     public PlanFragmentId getFragmentId() {
         return fragmentId;
+    }
+
+    public Set<RuntimeFilterId> getBuilderRuntimeFilterIds() {
+        return builderRuntimeFilterIds;
+    }
+
+    public Set<RuntimeFilterId> getTargetRuntimeFilterIds() {
+        return targetRuntimeFilterIds;
+    }
+
+    public void clearRuntimeFilters() {
+        builderRuntimeFilterIds.clear();
+        targetRuntimeFilterIds.clear();
     }
 
     public void setTransferQueryStatisticsWithEveryBatch(boolean value) {
