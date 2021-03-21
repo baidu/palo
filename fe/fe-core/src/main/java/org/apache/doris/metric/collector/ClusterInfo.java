@@ -21,7 +21,7 @@ import com.clearspring.analytics.util.Lists;
 import com.google.common.collect.Maps;
 import org.apache.doris.catalog.Catalog;
 import org.apache.doris.common.Config;
-import org.apache.doris.service.FrontendOptions;
+import org.apache.doris.common.util.NetUtils;
 import org.apache.doris.system.Backend;
 import org.apache.doris.system.Frontend;
 import org.apache.doris.system.SystemInfoService;
@@ -105,7 +105,7 @@ public class ClusterInfo {
         List<Frontend> frontends = Catalog.getCurrentCatalog().getFrontends(null);
         List<String> result = Lists.newArrayList();
         for (Frontend frontend : frontends) {
-            result.add(FrontendOptions.getHostnameByIp(frontend.getHost()) + ":" + Config.http_port);
+            result.add(NetUtils.getHostnameByIp(frontend.getHost()) + ":" + Config.http_port);
         }
         return result;
     }
@@ -121,7 +121,7 @@ public class ClusterInfo {
         List<String> result = Lists.newArrayList();
         for (long backendId : backendIds) {
             Backend backend = infoService.getBackend(backendId);
-            result.add(FrontendOptions.getHostnameByIp(backend.getHost()) + ":" + backend.getHttpPort());
+            result.add(NetUtils.getHostnameByIp(backend.getHost()) + ":" + backend.getHttpPort());
         }
         return result;
     }

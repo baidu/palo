@@ -27,8 +27,8 @@ import org.apache.doris.catalog.Catalog;
 import org.apache.doris.common.Config;
 import org.apache.doris.common.DdlException;
 import org.apache.doris.common.Pair;
+import org.apache.doris.common.util.NetUtils;
 import org.apache.doris.persist.gson.GsonUtils;
-import org.apache.doris.service.FrontendOptions;
 import org.apache.doris.system.SystemInfoService;
 
 import java.net.InetSocketAddress;
@@ -209,7 +209,7 @@ public class Monitor {
                 timestampsOfReadingMetric));
         txnData.put(BDBJEMetricUtils.FAILED, getTransactionStatusData(BDBJEMetricUtils.TXN_FAILED, readInterval,
                 timestampsOfReadingMetric));
-        nodeToData.put(FrontendOptions.getHostnameByIp(ipPort.first) + ":" + ipPort.second, txnData);
+        nodeToData.put(NetUtils.getHostnameByIp(ipPort.first) + ":" + ipPort.second, txnData);
         return new ChartDataTxn<>(timestampsOfReadingMetric, nodeToData);
     }
 
