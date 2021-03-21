@@ -39,6 +39,9 @@ import com.google.common.collect.Sets;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -115,6 +118,10 @@ abstract public class PlanNode extends TreeNode<PlanNode> {
     protected int numInstances;
 
     private boolean cardinalityIsDone = false;
+
+    public String getPlanNodeName() {
+        return planNodeName;
+    }
 
     protected PlanNode(PlanNodeId id, ArrayList<TupleId> tupleIds, String planNodeName) {
         this.id = id;
@@ -396,7 +403,7 @@ abstract public class PlanNode extends TreeNode<PlanNode> {
      * Subclass should override this function.
      * Each line should be prefix by detailPrefix.
      */
-    protected String getNodeExplainString(String prefix, TExplainLevel detailLevel) {
+    public String getNodeExplainString(String prefix, TExplainLevel detailLevel) {
         return "";
     }
 
@@ -730,6 +737,15 @@ abstract public class PlanNode extends TreeNode<PlanNode> {
         if (cardinality == 0 && preConjunctCardinality > 0) {
             cardinality = 1;
         }
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("[").append(getId().asInt()).append(": ").append(getPlanNodeName()).append("]");
+        sb.append("\nFragment: ").append(getFragmentId().asInt()).append("]");
+        sb.append("\n").append(getNodeExplainString("", TExplainLevel.BRIEF));
+        return sb.toString();
     }
 }
 

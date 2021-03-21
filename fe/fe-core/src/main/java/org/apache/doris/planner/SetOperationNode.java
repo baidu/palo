@@ -38,6 +38,10 @@ import com.google.common.collect.Lists;
 
 import org.apache.commons.collections.CollectionUtils;
 
+import com.google.common.base.Joiner;
+import com.google.common.base.Preconditions;
+import com.google.common.collect.Lists;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -333,7 +337,11 @@ public abstract class SetOperationNode extends PlanNode {
     }
 
     @Override
-    protected String getNodeExplainString(String prefix, TExplainLevel detailLevel) {
+    public String getNodeExplainString(String prefix, TExplainLevel detailLevel) {
+        if (detailLevel == TExplainLevel.BRIEF) {
+            return "";
+        }
+
         StringBuilder output = new StringBuilder();
         // A SetOperationNode may have predicates if a union is set operation inside an inline view,
         // and the enclosing select stmt has predicates referring to the inline view.
@@ -342,7 +350,7 @@ public abstract class SetOperationNode extends PlanNode {
         }
         if (CollectionUtils.isNotEmpty(constExprLists_)) {
             output.append(prefix).append("constant exprs: ").append("\n");
-            for(List<Expr> exprs : constExprLists_) {
+            for (List<Expr> exprs : constExprLists_) {
                 output.append(prefix).append("    ").append(exprs.stream().map(Expr::toSql)
                         .collect(Collectors.joining(" | "))).append("\n");
             }

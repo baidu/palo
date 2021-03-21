@@ -30,6 +30,9 @@ import org.apache.doris.thrift.TPlanNode;
 import org.apache.doris.thrift.TPlanNodeType;
 import org.apache.doris.thrift.TQueryOptions;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.google.common.base.Joiner;
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Preconditions;
@@ -37,9 +40,6 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
 import java.util.List;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Computation of analytic exprs.
@@ -212,10 +212,12 @@ public class AnalyticEvalNode extends PlanNode {
         }
     }
 
-    protected String getNodeExplainString(String prefix, TExplainLevel detailLevel) {
+    @Override
+    public String getNodeExplainString(String prefix, TExplainLevel detailLevel) {
+        if (detailLevel == TExplainLevel.BRIEF) {
+            return "";
+        }
         StringBuilder output = new StringBuilder();
-        //    output.append(String.format("%s%s", prefix, getDisplayLabel()));
-        //    output.append("\n");
         output.append(prefix + "functions: ");
         List<String> strings = Lists.newArrayList();
 
