@@ -577,6 +577,11 @@ CONF_mInt32(runtime_filter_max_in_num, "1024");
 // disable zone map index when page row is too few
 CONF_mInt32(zone_map_row_num_threshold, "20");
 
+// buffered reader buffer size
+// This may affect the performance of reading data in parquet or orc format in remote storage.
+// default is 1MB
+CONF_mInt32(buffered_reader_buffer_size_bytes, "1048576");
+
 } // namespace config
 
 } // namespace doris
