@@ -744,7 +744,8 @@ Status OlapScanNode::normalize_predicate(ColumnValueRange<T>& range, SlotDescrip
     RETURN_IF_ERROR(normalize_noneq_binary_predicate(slot, &range));
 
     // 3. Normalize BloomFilterPredicate, push down by hash join node
-    RETURN_IF_ERROR(normalize_bloom_filter_predicate(slot));
+    // Because the data structure of the storage engine layer is different from that of the computing layer, we do not support the storage engine push down for the time being. So we need to wait for branch_core_runtime merge to master to open comments
+    // RETURN_IF_ERROR(normalize_bloom_filter_predicate(slot));
 
     // 4. Check whether range is empty, set _eos
     if (range.is_empty_value_range()) _eos = true;
