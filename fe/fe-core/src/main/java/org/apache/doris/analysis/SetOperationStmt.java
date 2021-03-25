@@ -525,6 +525,10 @@ public class SetOperationStmt extends QueryStmt {
         if (orderByElements != null) {
             for (OrderByElement orderByElement : orderByElements) {
                 Expr expr = orderByElement.getExpr();
+                // see SelectStmt.collectExprs comments
+                if (containAlias(expr)) {
+                    continue;
+                }
                 registerExprId(expr);
                 exprMap.put(expr.getId().toString(), expr);
             }
@@ -538,7 +542,12 @@ public class SetOperationStmt extends QueryStmt {
         }
         if (orderByElements != null) {
             for (OrderByElement orderByElement : orderByElements) {
-                orderByElement.setExpr(rewrittenExprMap.get(orderByElement.getExpr().getId().toString()));
+                Expr expr = orderByElement.getExpr();
+                if (expr.getId() == null) {
+                    orderByElement.setExpr(expr);
+                } else {
+                    orderByElement.setExpr(rewrittenExprMap.get(expr.getId().toString()));
+                }
             }
         }
     }

@@ -473,6 +473,24 @@ public abstract class QueryStmt extends StatementBase {
         }
     }
 
+    /**
+     * check whether expr and it's children contain alias
+     * @param expr expr to be checked
+     * @return true if contains, otherwise false
+     */
+    public boolean containAlias(Expr expr) {
+        for (Expr child : expr.getChildren()) {
+            if (containAlias(child)) {
+                return true;
+            }
+        }
+
+        if (null != aliasSMap.get(expr)) {
+            return true;
+        }
+        return false;
+    }
+
     // get tables used by this query.
     // Set<String> parentViewNameSet contain parent stmt view name
     // to make sure query like "with tmp as (select * from db1.table1) " +

@@ -96,13 +96,12 @@ public class GroupByClause implements ParseNode {
     }
 
     public void reset() {
+        groupingExprs = new ArrayList<>();
         analyzed_ = false;
         exprGenerated = false;
-        if (groupingExprs != null) {
-            Expr.resetList(groupingExprs);
-        }
         if (oriGroupingExprs != null) {
             Expr.resetList(oriGroupingExprs);
+            groupingExprs.addAll(oriGroupingExprs);
         }
         if (groupingSetList != null) {
             for (List<Expr> s : groupingSetList) {
@@ -117,6 +116,10 @@ public class GroupByClause implements ParseNode {
 
     public List<Expr> getOriGroupingExprs() {
         return oriGroupingExprs;
+    }
+
+    public void setOriGroupingExprs(ArrayList<Expr> list) {
+        oriGroupingExprs = list;
     }
 
     public ArrayList<Expr> getGroupingExprs() {

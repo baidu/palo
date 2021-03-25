@@ -111,7 +111,7 @@ public class QueryStmtTest {
         stmt = (QueryStmt) UtFrameUtils.parseAndAnalyzeStmt(sql, ctx);
         exprsMap.clear();
         stmt.collectExprs(exprsMap);
-        Assert.assertEquals(7, exprsMap.size());
+        Assert.assertEquals(6, exprsMap.size());
 
         sql = "select\n" +
                 "   avg(t1.k4)\n" +
@@ -187,7 +187,7 @@ public class QueryStmtTest {
         stmt = (QueryStmt) UtFrameUtils.parseAndAnalyzeStmt(sql, ctx);
         exprsMap.clear();
         stmt.collectExprs(exprsMap);
-        Assert.assertEquals(6, exprsMap.size());
+        Assert.assertEquals(4, exprsMap.size());
     }
 
     @Test

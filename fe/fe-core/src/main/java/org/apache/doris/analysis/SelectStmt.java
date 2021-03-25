@@ -1440,6 +1440,10 @@ public class SelectStmt extends QueryStmt {
             if (groupingExprs != null) {
                 rewriter.rewriteList(groupingExprs, analyzer);
             }
+            List<Expr> oriGroupingExprs = groupByClause.getOriGroupingExprs();
+            if (oriGroupingExprs != null) {
+                rewriter.rewriteList(oriGroupingExprs, analyzer);
+            }
         }
         if (orderByElements != null) {
             for (OrderByElement orderByElem : orderByElements) {
@@ -1476,9 +1480,6 @@ public class SelectStmt extends QueryStmt {
                 registerExprId(ref.onClause);
                 exprMap.put(ref.onClause.getId().toString(), ref.onClause);
             }
-            if (ref instanceof InlineViewRef) {
-                ((InlineViewRef) ref).getViewStmt().collectExprs(exprMap);
-            }
         }
 
         if (whereClause != null) {
@@ -1500,6 +1501,54 @@ public class SelectStmt extends QueryStmt {
             ArrayList<Expr> groupingExprs = groupByClause.getGroupingExprs();
             if (groupingExprs != null) {
                 for (Expr expr : groupingExprs) {
+                    if (containAlias(expr)) {
+                        continue;
+                    }
+                    registerExprId(expr);
+                    exprMap.put(expr.getId().toString(), expr);
+                }
+            }
+            List<Expr> oriGroupingExprs = groupByClause.getOriGroupingExprs();
+            if (oriGroupingExprs != null) {
+                for (Expr expr : oriGroupingExprs) {
+                    /*
+                     * Suppose there is a query statement:
+                     *
+                     * ```
+                     * select
+                     *     i_item_sk as b
+                     * from item
+                     * group by b
+                     * order by b desc
+                     * ```
+                     *
+                     * where `b` is an alias for `i_item_sk`.
+                     *
+                     * When analyze is done, it becomes
+                     *
+                     * ```
+                     * SELECT
+                     *     `i_item_sk`
+                     * FROM `item`
+                     * GROUP BY `b`
+                     * ORDER BY `b` DESC
+                     * ```
+                     * Aliases information of groupBy and orderBy clauses is recorded in `QueryStmt.aliasSMap`.
+                     * The select clause has it's own alias info in `SelectListItem.alias`.
+                     *
+                     * Aliases expr in the `group by` and `order by` clauses are not analyzed, i.e. `Expr.isAnalyzed=false`
+                     * Subsequent constant folding will analyze the unanalyzed Expr before collecting the constant
+                     * expressions, preventing the `INVALID_TYPE` expr from being sent to BE.
+                     *
+                     * But when analyzing the alias, the meta information corresponding to the slot cannot be found
+                     * in the catalog, an error will be reported.
+                     *
+                     * So the alias needs to be removed here.
+                     *
+                     */
+                    if (containAlias(expr)) {
+                        continue;
+                    }
                     registerExprId(expr);
                     exprMap.put(expr.getId().toString(), expr);
                 }
@@ -1507,6 +1556,10 @@ public class SelectStmt extends QueryStmt {
         }
         if (orderByElements != null) {
             for (OrderByElement orderByElem : orderByElements) {
+                // same as above
+                if (containAlias(orderByElem.getExpr())) {
+                    continue;
+                }
                 registerExprId(orderByElem.getExpr());
                 exprMap.put(orderByElem.getExpr().getId().toString(), orderByElem.getExpr());
             }
@@ -1533,9 +1586,6 @@ public class SelectStmt extends QueryStmt {
             if (ref.onClause != null) {
                 ref.setOnClause(rewrittenExprMap.get(ref.onClause.getId().toString()));
             }
-            if (ref instanceof InlineViewRef) {
-                ((InlineViewRef) ref).getViewStmt().putBackExprs(rewrittenExprMap);
-            }
         }
 
         if (whereClause != null) {
@@ -1556,15 +1606,36 @@ public class SelectStmt extends QueryStmt {
             if (groupingExprs != null) {
                 ArrayList<Expr> newGroupingExpr = new ArrayList<>();
                 for (Expr expr : groupingExprs) {
-                    newGroupingExpr.add(rewrittenExprMap.get(expr.getId().toString()));
+                    if (expr.getId() == null) {
+                        newGroupingExpr.add(expr);
+                    } else {
+                        newGroupingExpr.add(rewrittenExprMap.get(expr.getId().toString()));
+                    }
                 }
                 groupByClause.setGroupingExpr(newGroupingExpr);
 
             }
+            List<Expr> oriGroupingExprs = groupByClause.getOriGroupingExprs();
+            if (oriGroupingExprs != null) {
+                ArrayList<Expr> newOriGroupingExprs = new ArrayList<>();
+                for (Expr expr : oriGroupingExprs) {
+                    if (expr.getId() == null) {
+                        newOriGroupingExprs.add(expr);
+                    } else {
+                        newOriGroupingExprs.add(rewrittenExprMap.get(expr.getId().toString()));
+                    }
+                }
+                groupByClause.setOriGroupingExprs(newOriGroupingExprs);
+            }
         }
         if (orderByElements != null) {
             for (OrderByElement orderByElem : orderByElements) {
-                orderByElem.setExpr(rewrittenExprMap.get(orderByElem.getExpr().getId().toString()));
+                Expr expr = orderByElem.getExpr();
+                if (expr.getId() == null) {
+                    orderByElem.setExpr(expr);
+                } else {
+                    orderByElem.setExpr(rewrittenExprMap.get(expr.getId().toString()));
+                }
             }
         }
     }
