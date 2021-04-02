@@ -161,10 +161,10 @@ public class LoadStmt extends DdlStmt {
                     return Integer.valueOf(s);
                 }
             })
-            .put(CLUSTER_PROPERTY, new Function<String, Integer>() {
+            .put(CLUSTER_PROPERTY, new Function<String, String>() {
                 @Override
-                public @Nullable Integer apply(@Nullable String s) {
-                    return Integer.valueOf(s);
+                public @Nullable String apply(@Nullable String s) {
+                    return s;
                 }
             })
             .build();
