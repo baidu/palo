@@ -17,18 +17,19 @@
 
 package org.apache.doris.metric.collector;
 
+import org.apache.doris.catalog.Catalog;
+import org.apache.doris.common.Config;
+import org.apache.doris.common.UserException;
+import org.apache.doris.journal.bdbje.BDBEnvironment;
+
 import com.sleepycat.bind.EntryBinding;
 import com.sleepycat.bind.tuple.TupleBinding;
+import com.sleepycat.je.Database;
 import com.sleepycat.je.DatabaseConfig;
 import com.sleepycat.je.DatabaseEntry;
 import com.sleepycat.je.LockMode;
 import com.sleepycat.je.Put;
 import com.sleepycat.je.WriteOptions;
-import org.apache.doris.catalog.Catalog;
-import org.apache.doris.common.Config;
-import org.apache.doris.journal.bdbje.BDBEnvironment;
-
-import com.sleepycat.je.Database;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -44,6 +45,7 @@ public class BDBJEMetricHandler {
     private static final String METRIC_DB_NAME = "metricDB";
 
     private BDBEnvironment bdbEnvironment;
+    // the metricDb maybe null at runtime, visit it by using getMetricDb()
     private Database metricDb;
     private WriteOptions wo;
 
@@ -51,24 +53,48 @@ public class BDBJEMetricHandler {
     private EntryBinding doubleTupleBinding = TupleBinding.getPrimitiveBinding(Double.class);
 
     public BDBJEMetricHandler(BDBEnvironment bdbEnv) {
-        try {
-            bdbEnvironment = bdbEnv;
-            DatabaseConfig dbConfig = new DatabaseConfig();
-            dbConfig.setTransactional(true);
-            if (Catalog.getCurrentCatalog().isElectable()) {
-                dbConfig.setAllowCreate(true).setReadOnly(false).setKeyPrefixing(true);
-            } else {
-                dbConfig.setAllowCreate(false).setReadOnly(true);
-            }
-            // Configure the METRIC_DB_NAME to support key prefixing.
-            metricDb = bdbEnvironment.openDatabase(METRIC_DB_NAME, dbConfig);
-        } catch (Exception e) {
-            LOG.error("open metric bdbje database error.", e);
-            System.exit(-1);
-        }
-
+        bdbEnvironment = bdbEnv;
+        initMetricDb();
         wo = new WriteOptions();
         wo.setTTL(Config.metric_ttl);
+    }
+
+    private void initMetricDb() {
+        if (metricDb != null) {
+            return;
+        }
+        synchronized (this) {
+            if (metricDb != null) {
+                return;
+            }
+            try {
+                DatabaseConfig dbConfig = new DatabaseConfig();
+                dbConfig.setTransactional(true);
+                if (Catalog.getCurrentCatalog().isElectable()) {
+                    dbConfig.setAllowCreate(true).setReadOnly(false).setKeyPrefixing(true);
+                } else {
+                    dbConfig.setAllowCreate(false).setReadOnly(true);
+                }
+                // Configure the METRIC_DB_NAME to support key prefixing.
+                metricDb = bdbEnvironment.openDatabase(METRIC_DB_NAME, dbConfig);
+                // metricDb maybe null after we open database.
+                // When we upgrade the cluster from version 0.13, we usually upgrade
+                // the non-Master FE, such as Observer first.
+                // At this time, MetricDb does not exist in BDBJE, so openDatabase()
+                // will report an error that "DB cannot be found", but this error will not be thrown,
+                // but just make openDatabase() return null.
+            } catch (Exception e) {
+                LOG.warn("open metric bdbje database error.", e);
+            }
+        }
+    }
+
+    private Database getMetricDb() throws UserException {
+        initMetricDb();
+        if (metricDb == null) {
+            throw new UserException("MetricDb is not opened");
+        }
+        return metricDb;
     }
 
     public void writeLong(String key, long value) {
@@ -86,7 +112,7 @@ public class BDBJEMetricHandler {
     private void write(String key, DatabaseEntry theValue) {
         try {
             DatabaseEntry theKey = new DatabaseEntry(key.getBytes(CHARSET_NAME));
-            metricDb.put(null, theKey, theValue, Put.OVERWRITE, wo);
+            getMetricDb().put(null, theKey, theValue, Put.OVERWRITE, wo);
         } catch (Exception e) {
             LOG.warn("write metric data into bdb error, key:{}", key, e);
         }
@@ -97,8 +123,14 @@ public class BDBJEMetricHandler {
         try {
             Long result = (Long) longTupleBinding.entryToObject(read(key));
             return result;
-        } catch (Exception e) {
+        } catch (IndexOutOfBoundsException e) {
             // An IndexOutOfBoundsException will be thrown when the queried data does not exist.
+            return null;
+        } catch (UnsupportedEncodingException e) {
+            // rarely happen, just make compiler happy
+            return null;
+        } catch (UserException e) {
+            LOG.warn("failed to read key: {}", key, e);
             return null;
         }
     }
@@ -114,10 +146,10 @@ public class BDBJEMetricHandler {
         }
     }
 
-    private DatabaseEntry read(String key) throws UnsupportedEncodingException {
+    private DatabaseEntry read(String key) throws UnsupportedEncodingException, UserException {
         DatabaseEntry theKey = new DatabaseEntry(key.getBytes(CHARSET_NAME));
         DatabaseEntry theValue = new DatabaseEntry();
-        metricDb.get(null, theKey, theValue, LockMode.DEFAULT);
+        getMetricDb().get(null, theKey, theValue, LockMode.DEFAULT);
         return theValue;
     }
 

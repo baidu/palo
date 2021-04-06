@@ -57,7 +57,6 @@ public class Monitor {
     public static final int DEFAULT_MONITOR_POINTS = 100;
     public static final String NODES = "nodes";
     public static final String POINT_NUM = "point_num";
-    private static BDBJEMetricHandler bdbjeMetricHandler = Catalog.getCurrentCatalog().getBDBJEMetricHandler();
 
     public enum MonitorType {
         QPS("frontend"),
@@ -227,6 +226,7 @@ public class Monitor {
         if (timestampsOfReadingMetric.size() == 0) {
             return values;
         }
+        BDBJEMetricHandler bdbjeMetricHandler = Catalog.getCurrentCatalog().getBDBJEMetricHandler();
         Long firstValue = bdbjeMetricHandler.readLong(BDBJEMetricUtils.concatBdbKey(
                 metricName, timestampsOfReadingMetric.get(0) - readInterval));
         for (long time : timestampsOfReadingMetric) {
@@ -252,6 +252,7 @@ public class Monitor {
     private static Object beCpuIdle(long lastTimestamp, List<String> nodes, List<Long> timestampsOfReadingMetric) {
         Map<String, List<Long>> nodeToData = Maps.newHashMap();
         emptyAddAllBe(nodes);
+        BDBJEMetricHandler bdbjeMetricHandler = Catalog.getCurrentCatalog().getBDBJEMetricHandler();
         for (String node : nodes) {
             Pair<String, Integer> ipPort;
             try {
@@ -322,6 +323,7 @@ public class Monitor {
 
     private static Object readDataLong(String metricName, List<String> nodes, List<Long> timestampsOfReadingMetric) {
         Map<String, List<Long>> nodeToData = Maps.newHashMap();
+        BDBJEMetricHandler bdbjeMetricHandler = Catalog.getCurrentCatalog().getBDBJEMetricHandler();
         for (String node : nodes) {
             Pair<String, Integer> ipPort;
             try {
@@ -342,6 +344,7 @@ public class Monitor {
 
     private static Object readDataDouble(String metricName, List<String> nodes, List<Long> timestampsOfReadingMetric) {
         Map<String, List<Double>> nodeToData = Maps.newHashMap();
+        BDBJEMetricHandler bdbjeMetricHandler = Catalog.getCurrentCatalog().getBDBJEMetricHandler();
         for (String node : nodes) {
             Pair<String, Integer> ipPort;
             try {
