@@ -25,7 +25,7 @@
 # contains the build version based on the git hash or svn revision.
 ##############################################################
 
-build_version="trunk"
+build_version="0.14.7"
 
 unset LANG
 unset LC_CTYPE
