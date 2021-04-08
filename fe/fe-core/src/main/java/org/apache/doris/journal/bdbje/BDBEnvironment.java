@@ -43,6 +43,7 @@ import com.sleepycat.je.rep.StateChangeListener;
 import com.sleepycat.je.rep.util.DbResetRepGroup;
 import com.sleepycat.je.rep.util.ReplicationGroupAdmin;
 
+import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -347,11 +348,11 @@ public class BDBEnvironment {
         
         if (names != null) {
             for (String name : names) {
-                try {
-                    long db = Long.parseLong(name);
-                    ret.add(db);
-                } catch (NumberFormatException e) {
+                if (StringUtils.isNumeric(name)) {
+                    ret.add(Long.parseLong(name));
+                } else {
                     // "epochDB" and "metricDB" will throw this exception. No need to deal with it.
+                    LOG.debug("get database names, skipped {}", name);
                 }
             }
         }
