@@ -34,9 +34,6 @@ import org.apache.doris.service.ExecuteEnv;
 import org.apache.doris.service.FeServer;
 import org.apache.doris.service.FrontendOptions;
 
-import com.google.common.base.Charsets;
-import com.google.common.base.Strings;
-
 import org.apache.commons.cli.BasicParser;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
@@ -44,6 +41,9 @@ import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+import com.google.common.base.Charsets;
+import com.google.common.base.Strings;
 
 import java.io.File;
 import java.io.IOException;
@@ -89,8 +89,8 @@ public class PaloFe {
             // Because the path of custom config file is defined in fe.conf
             config.initCustom(Config.custom_config_dir + "/fe_custom.conf");
 
+            LdapConfig ldapConfig = new LdapConfig();
             if (new File(dorisHomeDir + "/conf/ldap.conf").exists()) {
-                LdapConfig ldapConfig = new LdapConfig();
                 ldapConfig.init(dorisHomeDir + "/conf/ldap.conf");
             }
 
