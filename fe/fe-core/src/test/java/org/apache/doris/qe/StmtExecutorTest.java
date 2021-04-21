@@ -46,8 +46,8 @@ import org.apache.doris.mysql.MysqlChannel;
 import org.apache.doris.mysql.MysqlSerializer;
 import org.apache.doris.planner.Planner;
 import org.apache.doris.planner.StreamLoadPlanner;
-import org.apache.doris.proto.PExecPlanFragmentResult;
-import org.apache.doris.proto.PStatus;
+import org.apache.doris.proto.InternalService;
+import org.apache.doris.proto.Status;
 import org.apache.doris.rewrite.ExprRewriter;
 import org.apache.doris.rpc.BackendServiceProxy;
 import org.apache.doris.service.FrontendOptions;
@@ -88,7 +88,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java_cup.runtime.Symbol;
 import mockit.Expectations;
 import mockit.Mocked;
-
 import static org.apache.doris.catalog.Table.TableType.OLAP;
 
 public class StmtExecutorTest {
@@ -859,7 +858,7 @@ public class StmtExecutorTest {
                                @Mocked SystemInfoService systemInfoService,
                                @Mocked Backend backend,
                                @Mocked BackendServiceProxy backendServiceProxy,
-                               @Mocked Future<PExecPlanFragmentResult> execFuture) throws Exception {
+                               @Mocked Future<InternalService.PExecPlanFragmentResult> execFuture) throws Exception {
 
         TExecPlanFragmentParams execPlanFragmentParams = new TExecPlanFragmentParams();
         execPlanFragmentParams.params = new TPlanFragmentExecParams();
@@ -878,9 +877,8 @@ public class StmtExecutorTest {
         List<Long> beIds = new ArrayList<>();
         beIds.add(1L);
 
-        PExecPlanFragmentResult execPlanFragmentResult = new PExecPlanFragmentResult();
-        execPlanFragmentResult.status = new PStatus();
-        execPlanFragmentResult.status.status_code = 1;
+        InternalService.PExecPlanFragmentResult execPlanFragmentResult = InternalService.PExecPlanFragmentResult.newBuilder()
+                .setStatus(Status.PStatus.newBuilder().setStatusCode(1).build()).build();
 
         Map<Long, Backend> map = new HashMap<>();
         map.put(1L, backend);
@@ -995,4 +993,5 @@ public class StmtExecutorTest {
     }
 
 }
+
 

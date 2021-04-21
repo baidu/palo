@@ -77,16 +77,13 @@ import org.apache.doris.mysql.MysqlSerializer;
 import org.apache.doris.mysql.privilege.PrivPredicate;
 import org.apache.doris.planner.Planner;
 import org.apache.doris.planner.StreamLoadPlanner;
-import org.apache.doris.proto.PExecPlanFragmentResult;
-import org.apache.doris.proto.PQueryStatistics;
-import org.apache.doris.proto.PStatus;
-import org.apache.doris.proto.PUniqueId;
+import org.apache.doris.proto.Data;
+import org.apache.doris.proto.InternalService;
+import org.apache.doris.proto.Types;
 import org.apache.doris.qe.QueryState.MysqlStateType;
 import org.apache.doris.qe.cache.Cache;
 import org.apache.doris.qe.cache.CacheAnalyzer;
 import org.apache.doris.qe.cache.CacheAnalyzer.CacheMode;
-import org.apache.doris.qe.cache.CacheBeProxy;
-import org.apache.doris.qe.cache.CacheProxy;
 import org.apache.doris.rewrite.ExprRewriter;
 import org.apache.doris.rewrite.mvrewrite.MVSelectFailedException;
 import org.apache.doris.rpc.BackendServiceProxy;
@@ -104,6 +101,7 @@ import org.apache.doris.thrift.TMergeType;
 import org.apache.doris.thrift.TNetworkAddress;
 import org.apache.doris.thrift.TQueryOptions;
 import org.apache.doris.thrift.TQueryType;
+import org.apache.doris.thrift.TResultBatch;
 import org.apache.doris.thrift.TStatusCode;
 import org.apache.doris.thrift.TStreamLoadPutRequest;
 import org.apache.doris.thrift.TTxnParams;
@@ -115,14 +113,15 @@ import org.apache.doris.transaction.TransactionEntry;
 import org.apache.doris.transaction.TransactionState;
 import org.apache.doris.transaction.TransactionStatus;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.thrift.TException;
-
 import com.google.common.base.Strings;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
+import com.google.protobuf.ByteString;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.thrift.TException;
 
 import java.io.IOException;
 import java.io.StringReader;
@@ -161,7 +160,7 @@ public class StmtExecutor {
     private Planner planner;
     private boolean isProxy;
     private ShowResultSet proxyResultSet = null;
-    private PQueryStatistics statisticsForAuditLog;
+    private Data.PQueryStatistics.Builder statisticsForAuditLog;
     private boolean isCached;
 
     private QueryPlannerProfile plannerProfile = new QueryPlannerProfile();
@@ -674,13 +673,21 @@ public class StmtExecutor {
     // return true if the meta fields has been sent, otherwise, return false.
     // the meta fields must be sent right before the first batch of data(or eos flag).
     // so if it has data(or eos is true), this method must return true.
-    private boolean sendCachedValues(MysqlChannel channel, List<CacheProxy.CacheValue> cacheValues,
+    private boolean sendCachedValues(MysqlChannel channel, List<InternalService.PCacheValue> cacheValues,
                                      SelectStmt selectStmt, boolean isSendFields, boolean isEos)
             throws Exception {
         RowBatch batch = null;
         boolean isSend = isSendFields;
-        for (CacheBeProxy.CacheValue value : cacheValues) {
-            batch = value.getRowBatch();
+        for (InternalService.PCacheValue value : cacheValues) {
+            TResultBatch resultBatch = new TResultBatch();
+            for (ByteString one : value.getRowsList()) {
+                resultBatch.addToRows(ByteBuffer.wrap(one.toByteArray()));
+            }
+            resultBatch.setPacketSeq(1);
+            resultBatch.setIsCompressed(false);
+            batch = new RowBatch();
+            batch.setBatch(resultBatch);
+            batch.setEos(true);
             if (!isSend) {
                 // send meta fields before sending first data batch.
                 sendFields(selectStmt.getColLabels(), exprToType(selectStmt.getResultExprs()));
@@ -694,7 +701,7 @@ public class StmtExecutor {
 
         if (isEos) {
             if (batch != null) {
-                statisticsForAuditLog = batch.getQueryStatistics();
+                statisticsForAuditLog = batch.getQueryStatistics() == null ? null : batch.getQueryStatistics().toBuilder();
             }
             if (!isSend) {
                 sendFields(selectStmt.getColLabels(), exprToType(selectStmt.getResultExprs()));
@@ -710,20 +717,20 @@ public class StmtExecutor {
      */
     private void handleCacheStmt(CacheAnalyzer cacheAnalyzer, MysqlChannel channel, SelectStmt selectStmt) throws Exception {
         RowBatch batch = null;
-        CacheBeProxy.FetchCacheResult cacheResult = cacheAnalyzer.getCacheData();
+        InternalService.PFetchCacheResult cacheResult = cacheAnalyzer.getCacheData();
         CacheMode mode = cacheAnalyzer.getCacheMode();
         SelectStmt newSelectStmt = selectStmt;
         boolean isSendFields = false;
         if (cacheResult != null) {
             isCached = true;
             if (cacheAnalyzer.getHitRange() == Cache.HitRange.Full) {
-                sendCachedValues(channel, cacheResult.getValueList(), newSelectStmt, isSendFields, true);
+                sendCachedValues(channel, cacheResult.getValuesList(), newSelectStmt, isSendFields, true);
                 return;
             }
             // rewrite sql
             if (mode == CacheMode.Partition) {
                 if (cacheAnalyzer.getHitRange() == Cache.HitRange.Left) {
-                    isSendFields = sendCachedValues(channel, cacheResult.getValueList(), newSelectStmt, isSendFields, false);
+                    isSendFields = sendCachedValues(channel, cacheResult.getValuesList(), newSelectStmt, isSendFields, false);
                 }
                 newSelectStmt = cacheAnalyzer.getRewriteStmt();
                 newSelectStmt.reset();
@@ -758,7 +765,7 @@ public class StmtExecutor {
         }
         
         if (cacheResult != null && cacheAnalyzer.getHitRange() == Cache.HitRange.Right) {
-            isSendFields = sendCachedValues(channel, cacheResult.getValueList(), newSelectStmt, isSendFields, false);
+            isSendFields = sendCachedValues(channel, cacheResult.getValuesList(), newSelectStmt, isSendFields, false);
         }
 
         cacheAnalyzer.updateCache();
@@ -768,7 +775,7 @@ public class StmtExecutor {
             isSendFields = true;
         }
 
-        statisticsForAuditLog = batch.getQueryStatistics();
+        statisticsForAuditLog = batch.getQueryStatistics() == null ? null : batch.getQueryStatistics().toBuilder();
         context.getState().setEof();
         return;
     }
@@ -850,7 +857,7 @@ public class StmtExecutor {
             }
         }
 
-        statisticsForAuditLog = batch.getQueryStatistics();
+        statisticsForAuditLog = batch.getQueryStatistics() == null ? null : batch.getQueryStatistics().toBuilder();
         context.getState().setEof();
         plannerProfile.setQueryFetchResultFinishTime();
     }
@@ -899,18 +906,33 @@ public class StmtExecutor {
             }
 
             TTxnParams txnConf = context.getTxnEntry().getTxnConf();
-            PUniqueId fragmentInstanceId = new PUniqueId();
-            fragmentInstanceId.hi = txnConf.getFragmentInstanceId().getHi();
-            fragmentInstanceId.lo = txnConf.getFragmentInstanceId().getLo();
+            Types.PUniqueId fragmentInstanceId = Types.PUniqueId.newBuilder().setHi(txnConf.getFragmentInstanceId().getHi())
+                    .setLo(txnConf.getFragmentInstanceId().getLo()).build();
 
             try {
+                Backend be = context.getTxnEntry().getBackend();
+                TNetworkAddress address = new TNetworkAddress(be.getHost(), be.getBrpcPort());
                 if (context.getTxnEntry().getDataToSend().size() > 0) {
-                    BackendServiceProxy.getInstance().insertForTxn(
-                            fragmentInstanceId, context.getTxnEntry().getDataToSend(), context.getTxnEntry().getBackend());
-                    context.getTxnEntry().clearDataToSend();
+                    // send rest data
+                    Future<InternalService.PSendDataResult> future = BackendServiceProxy.getInstance().sendData(
+                            address, fragmentInstanceId, context.getTxnEntry().getDataToSend());
+
+                    InternalService.PSendDataResult result = future.get(5, TimeUnit.SECONDS);
+                    TStatusCode code = TStatusCode.findByValue(result.getStatus().getStatusCode());
+                    if (code != TStatusCode.OK) {
+                        throw new TException("failed to insert data: " + result.getStatus().getErrorMsgsList());
+                    }
                 }
 
-                BackendServiceProxy.getInstance().commitForTxn(fragmentInstanceId, context.getTxnEntry().getBackend());
+                // commit
+                Future<InternalService.PCommitResult> future = BackendServiceProxy.getInstance().commit(address, fragmentInstanceId);
+                InternalService.PCommitResult result = future.get(5, TimeUnit.SECONDS);
+                TStatusCode code = TStatusCode.findByValue(result.getStatus().getStatusCode());
+                if (code != TStatusCode.OK) {
+                    throw new TException("failed to commit txn: " + result.getStatus().getErrorMsgsList());
+                }
+
+                // wait txn visible
                 TWaitingTxnStatusRequest request = new TWaitingTxnStatusRequest();
                 request.setDbId(txnConf.getDbId()).setTxnId(txnConf.getTxnId());
                 request.setLabelIsSet(false);
@@ -937,13 +959,21 @@ public class StmtExecutor {
                 return;
             }
             TTxnParams txnConf = context.getTxnEntry().getTxnConf();
-            PUniqueId fragmentInstanceId = new PUniqueId();
-            fragmentInstanceId.hi = txnConf.getFragmentInstanceId().getHi();
-            fragmentInstanceId.lo = txnConf.getFragmentInstanceId().getLo();
+            Types.PUniqueId fragmentInstanceId = Types.PUniqueId.newBuilder().setHi(txnConf.getFragmentInstanceId().getHi())
+                    .setLo(txnConf.getFragmentInstanceId().getLo()).build();
 
             try {
-                BackendServiceProxy.getInstance().rollbackForTxn(
-                        fragmentInstanceId, context.getTxnEntry().getBackend());
+                Backend be = context.getTxnEntry().getBackend();
+                TNetworkAddress address = new TNetworkAddress(be.getHost(), be.getBrpcPort());
+
+                Future<InternalService.PRollbackResult> future = BackendServiceProxy.getInstance().rollback(address,
+                        fragmentInstanceId);
+                InternalService.PRollbackResult result = future.get(5, TimeUnit.SECONDS);
+                TStatusCode code = TStatusCode.findByValue(result.getStatus().getStatusCode());
+                if (code != TStatusCode.OK) {
+                    throw new TException("failed to rollback txn: " + result.getStatus().getErrorMsgsList());
+                }
+
                 StringBuilder sb = new StringBuilder();
                 sb.append("{'label':'").append(context.getTxnEntry().getLabel()).append("', 'status':'")
                         .append(TransactionStatus.ABORTED.name()).append("', 'txnId':'")
@@ -968,9 +998,6 @@ public class StmtExecutor {
                 !context.getTxnEntry().getTxnConf().getTbl().equals(insertStmt.getTbl())) {
             throw new TException("Only one table can be inserted in one transaction.");
         }
-        PUniqueId fragmentInstanceId = new PUniqueId();
-        fragmentInstanceId.hi = context.getTxnEntry().getTxnConf().getFragmentInstanceId().getHi();
-        fragmentInstanceId.lo = context.getTxnEntry().getTxnConf().getFragmentInstanceId().getLo();
 
         QueryStmt queryStmt = insertStmt.getQueryStmt();
         if (!(queryStmt instanceof SelectStmt)) {
@@ -991,15 +1018,31 @@ public class StmtExecutor {
                 List<String> dataToSend = context.getTxnEntry().getDataToSend();
                 dataToSend.add(data);
                 if (dataToSend.size() >= MAX_DATA_TO_SEND_FOR_TXN) {
-                    BackendServiceProxy.getInstance().insertForTxn(
-                            fragmentInstanceId, dataToSend, context.getTxnEntry().getBackend());
-                    context.getTxnEntry().clearDataToSend();
+                    TTxnParams txnConf = context.getTxnEntry().getTxnConf();
+                    Types.PUniqueId fragmentInstanceId = Types.PUniqueId.newBuilder().setHi(txnConf.getFragmentInstanceId().getHi())
+                            .setLo(txnConf.getFragmentInstanceId().getLo()).build();
+                    Backend be = context.getTxnEntry().getBackend();
+                    TNetworkAddress address = new TNetworkAddress(be.getHost(), be.getBrpcPort());
+
+                    try {
+                        Future<InternalService.PSendDataResult> future = BackendServiceProxy.getInstance().sendData(
+                                address, fragmentInstanceId, context.getTxnEntry().getDataToSend());
+                        InternalService.PSendDataResult result = future.get(5, TimeUnit.SECONDS);
+                        TStatusCode code = TStatusCode.findByValue(result.getStatus().getStatusCode());
+                        if (code != TStatusCode.OK) {
+                            throw new TException("failed to insert data: " + result.getStatus().getErrorMsgsList());
+                        }
+                        context.getTxnEntry().clearDataToSend();
+                    } catch (RpcException e) {
+                        throw new UserException(e);
+                    }
                 }
             }
         }
         context.getTxnEntry().setRowsInTransaction(context.getTxnEntry().getRowsInTransaction() + effectRows);
         return effectRows;
     }
+
     private void beginTxn(String dbName, String tblName) throws UserException, TException,
             InterruptedException, ExecutionException, TimeoutException {
         TransactionEntry txnEntry = context.getTxnEntry();
@@ -1059,59 +1102,18 @@ public class StmtExecutor {
         txnConf.setUserIp(backend.getHost());
         tRequest.setTxnConf(txnConf).setImportLabel(label);
         txnEntry.setBackend(backend);
-        PExecPlanFragmentResult result = execRemoteFragmentAsync(backend, tRequest)
-                .get(Config.remote_fragment_exec_timeout_ms, TimeUnit.MILLISECONDS);
-        if (result.status.error_msgs != null && !result.status.error_msgs.isEmpty()) {
-            throw new TException(result.status.error_msgs.get(0));
-        }
-    }
+        TNetworkAddress address = new TNetworkAddress(backend.getHost(), backend.getBrpcPort());
 
-    public Future<PExecPlanFragmentResult> execRemoteFragmentAsync(
-            Backend backend, TExecPlanFragmentParams rpcParams) throws TException {
-        TNetworkAddress brpcAddress = null;
         try {
-            brpcAddress = new TNetworkAddress(backend.getHost(), backend.getBrpcPort());
-        } catch (Exception e) {
-            throw new TException(e.getMessage());
-        }
-        try {
-            return BackendServiceProxy.getInstance().execPlanFragmentAsync(brpcAddress, rpcParams);
+            Future<InternalService.PExecPlanFragmentResult> future = BackendServiceProxy.getInstance().execPlanFragmentAsync(
+                    address, tRequest);
+            InternalService.PExecPlanFragmentResult result = future.get(5, TimeUnit.SECONDS);
+            TStatusCode code = TStatusCode.findByValue(result.getStatus().getStatusCode());
+            if (code != TStatusCode.OK) {
+                throw new TException("failed to execute plan fragment: " + result.getStatus().getErrorMsgsList());
+            }
         } catch (RpcException e) {
-            // DO NOT throw exception here, return a complete future with error code,
-            // so that the following logic will cancel the fragment.
-            return new Future<PExecPlanFragmentResult>() {
-                @Override
-                public boolean cancel(boolean mayInterruptIfRunning) {
-                    return false;
-                }
-
-                @Override
-                public boolean isCancelled() {
-                    return false;
-                }
-
-                @Override
-                public boolean isDone() {
-                    return true;
-                }
-
-                @Override
-                public PExecPlanFragmentResult get() {
-                    PExecPlanFragmentResult result = new PExecPlanFragmentResult();
-                    PStatus pStatus = new PStatus();
-                    pStatus.error_msgs = Lists.newArrayList();
-                    pStatus.error_msgs.add(e.getMessage());
-                    // use THRIFT_RPC_ERROR so that this BE will be added to the blacklist later.
-                    pStatus.status_code = TStatusCode.THRIFT_RPC_ERROR.getValue();
-                    result.status = pStatus;
-                    return result;
-                }
-
-                @Override
-                public PExecPlanFragmentResult get(long timeout, TimeUnit unit) {
-                    return get();
-                }
-            };
+            throw new TException(e);
         }
     }
 
@@ -1442,23 +1444,23 @@ public class StmtExecutor {
         context.getCatalog().getExportMgr().addExportJob(exportStmt);
     }
 
-    public PQueryStatistics getQueryStatisticsForAuditLog() {
+    public Data.PQueryStatistics getQueryStatisticsForAuditLog() {
         if (statisticsForAuditLog == null) {
-            statisticsForAuditLog = new PQueryStatistics();
+            statisticsForAuditLog = Data.PQueryStatistics.newBuilder();
         }
-        if (statisticsForAuditLog.scan_bytes == null) {
-            statisticsForAuditLog.scan_bytes = 0L;
+        if (!statisticsForAuditLog.hasScanBytes()) {
+            statisticsForAuditLog.setScanBytes(0L);
         }
-        if (statisticsForAuditLog.scan_rows == null) {
-            statisticsForAuditLog.scan_rows = 0L;
+        if (!statisticsForAuditLog.hasScanRows()) {
+            statisticsForAuditLog.setScanRows(0L);
         }
-        if (statisticsForAuditLog.returned_rows == null) {
-            statisticsForAuditLog.returned_rows = 0L;
+        if (statisticsForAuditLog.hasReturnedRows()) {
+            statisticsForAuditLog.setReturnedRows(0L);
         }
-        if (statisticsForAuditLog.cpu_ms == null) {
-            statisticsForAuditLog.cpu_ms = 0L;
+        if (!statisticsForAuditLog.hasCpuMs()) {
+            statisticsForAuditLog.setCpuMs(0L);
         }
-        return statisticsForAuditLog;
+        return statisticsForAuditLog.build();
     }
 
     private List<PrimitiveType> exprToType(List<Expr> exprs) {

@@ -106,9 +106,9 @@ public:
                   PRollbackResult* response,
                   google::protobuf::Closure* done);
 private:
-    Status _exec_plan_fragment(brpc::Controller* cntl);
+    Status _exec_plan_fragment(const std::string& s_request);
 
-    Status _fold_constant_expr(brpc::Controller* cntl, PConstantExprResult* response);
+    Status _fold_constant_expr(const std::string& ser_request, PConstantExprResult* response);
 
 private:
     ExecEnv* _exec_env;

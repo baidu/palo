@@ -18,8 +18,6 @@
 package org.apache.doris.rewrite;
 
 
-import com.google.common.base.Preconditions;
-import com.google.common.base.Predicates;
 import org.apache.doris.analysis.Analyzer;
 import org.apache.doris.analysis.CaseExpr;
 import org.apache.doris.analysis.CastExpr;
@@ -34,9 +32,7 @@ import org.apache.doris.catalog.Type;
 import org.apache.doris.common.AnalysisException;
 import org.apache.doris.common.LoadException;
 import org.apache.doris.common.util.TimeUtils;
-import org.apache.doris.proto.PConstantExprResult;
-import org.apache.doris.proto.PExprResult;
-import org.apache.doris.proto.PExprResultMap;
+import org.apache.doris.proto.InternalService;
 import org.apache.doris.qe.ConnectContext;
 import org.apache.doris.qe.VariableMgr;
 import org.apache.doris.rpc.BackendServiceProxy;
@@ -46,6 +42,10 @@ import org.apache.doris.thrift.TFoldConstantParams;
 import org.apache.doris.thrift.TNetworkAddress;
 import org.apache.doris.thrift.TPrimitiveType;
 import org.apache.doris.thrift.TQueryGlobals;
+
+import com.google.common.base.Preconditions;
+import com.google.common.base.Predicates;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -355,19 +355,19 @@ public class FoldConstantsRule implements ExprRewriteRule {
                 queryGlobals.setTimeZone(context.getSessionVariable().getTimeZone());
             }
 
-            TFoldConstantParams tParams = new TFoldConstantParams(map,queryGlobals);
+            TFoldConstantParams tParams = new TFoldConstantParams(map, queryGlobals);
 
-            Future<PConstantExprResult> future = BackendServiceProxy.getInstance().foldConstantExpr(brpcAddress, tParams);
-            PConstantExprResult result = future.get(5, TimeUnit.SECONDS);
+            Future<InternalService.PConstantExprResult> future = BackendServiceProxy.getInstance().foldConstantExpr(brpcAddress, tParams);
+            InternalService.PConstantExprResult result = future.get(5, TimeUnit.SECONDS);
 
-            if (result.status.status_code == 0) {
-                for (Map.Entry<String, PExprResultMap> entry : result.expr_result_map.entrySet()) {
+            if (result.getStatus().getStatusCode() == 0) {
+                for (Map.Entry<String, InternalService.PExprResultMap> entry : result.getExprResultMapMap().entrySet()) {
                     Map<String, Expr> tmp = new HashMap<>();
-                    for (Map.Entry<String, PExprResult> entry1 : entry.getValue().map.entrySet()) {
-                        TPrimitiveType type = TPrimitiveType.findByValue(entry1.getValue().type.type);
+                    for (Map.Entry<String, InternalService.PExprResult> entry1 : entry.getValue().getMapMap().entrySet()) {
+                        TPrimitiveType type = TPrimitiveType.findByValue(entry1.getValue().getType().getType());
                         Expr retExpr = null;
-                        if (entry1.getValue().success) {
-                            retExpr = LiteralExpr.create(entry1.getValue().content,
+                        if (entry1.getValue().getSuccess()) {
+                            retExpr = LiteralExpr.create(entry1.getValue().getContent(),
                                     Type.fromPrimitiveType(PrimitiveType.fromThrift(type)));
                         } else {
                             retExpr = allConstMap.get(entry1.getKey());
@@ -380,7 +380,7 @@ public class FoldConstantsRule implements ExprRewriteRule {
                 }
 
             } else {
-                LOG.warn("failed to get const expr value from be: {}", result.status.error_msgs);
+                LOG.warn("failed to get const expr value from be: {}", result.getStatus().getErrorMsgsList());
             }
         } catch (Exception e) {
             LOG.warn("failed to get const expr value from be: {}", e.getMessage());

@@ -1495,7 +1495,7 @@ public class QueryPlanTest {
         explainString = UtFrameUtils.getSQLPlanOrErrorMsg(connectContext, "EXPLAIN " + sql);
         System.out.println("wangxixu-explain:"+explainString);
         Assert.assertTrue(explainString.contains("PREDICATES: `query_time` < 1614614400, `query_time` >= 0"));
-        
+
     }
 
     @Test
@@ -1519,6 +1519,3 @@ public class QueryPlanTest {
         }
     }
 }
-
-
-
