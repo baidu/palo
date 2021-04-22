@@ -463,7 +463,7 @@ public class Analyzer {
         result.setTable(table);
         result.setRef(tableRef);
         result.setAliases(tableRef.getAliases(), ref.hasExplicitAlias());
-        for (Column col : table.getBaseSchema()) {
+        for (Column col : table.getBaseSchema(true)) {
             SlotDescriptor slot = globalState.descTbl.addSlotDescriptor(result);
             slot.setIsMaterialized(true);
             slot.setColumn(col);
@@ -473,7 +473,9 @@ public class Analyzer {
         }
         globalState.descTbl.computeStatAndMemLayout();
         tableRefMap_.put(result.getId(), ref);
-        tupleByAlias.put(table.getName(), result);
+        for (String alias : tableRef.getAliases()) {
+            tupleByAlias.put(alias, result);
+        }
         return result;
     }
 
