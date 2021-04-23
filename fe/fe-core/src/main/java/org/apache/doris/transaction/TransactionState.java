@@ -501,11 +501,17 @@ public class TransactionState implements Writable {
             return false;
         }
         long expireTime = Config.label_keep_max_second;
-        if (sourceType == LoadJobSourceType.BACKEND_STREAMING || sourceType == LoadJobSourceType.INSERT_STREAMING
-                || sourceType == LoadJobSourceType.ROUTINE_LOAD_TASK) {
-            expireTime = Config.stream_load_default_timeout_second;
+        if (isShortTxn()) {
+            expireTime = Config.streaming_label_keep_max_second;
         }
         return (currentMillis - finishTime) / 1000 > expireTime;
+    }
+
+    // Return true if this txn is related to streaming load/insert/routine load task.
+    // We call these tasks "Short" tasks because they will be cleaned up in a short time after they are finished.
+    public boolean isShortTxn() {
+        return sourceType == LoadJobSourceType.BACKEND_STREAMING || sourceType == LoadJobSourceType.INSERT_STREAMING
+                || sourceType == LoadJobSourceType.ROUTINE_LOAD_TASK;
     }
 
     // return true if txn is running but timeout

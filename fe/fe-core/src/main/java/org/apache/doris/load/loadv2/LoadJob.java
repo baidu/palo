@@ -1204,4 +1204,5 @@ public abstract class LoadJob extends AbstractTxnStateChangeCallback implements 
     public int getLoadParallelism() {
         return (int) jobProperties.get(LoadStmt.LOAD_PARALLELISM);
     }
+
 }
