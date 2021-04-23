@@ -18,6 +18,7 @@
 package org.apache.doris.transaction;
 
 import org.apache.doris.catalog.Table;
+import org.apache.doris.proto.InternalService;
 import org.apache.doris.system.Backend;
 import org.apache.doris.thrift.TTxnParams;
 
@@ -28,7 +29,7 @@ public class TransactionEntry {
 
     private Backend backend = null;
     private TTxnParams txnConf = null;
-    private List<String> dataToSend = new ArrayList<>();
+    private List<InternalService.PDataRow> dataToSend = new ArrayList<>();
     private Table table = null;
     private long rowsInTransaction = 0;
     private String label = "";
@@ -69,7 +70,7 @@ public class TransactionEntry {
         return isTxnModel() && txnConf.getTxnId() != -1;
     }
 
-    public List<String> getDataToSend() {
+    public List<InternalService.PDataRow> getDataToSend() {
         return dataToSend;
     }
 

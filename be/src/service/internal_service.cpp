@@ -295,8 +295,9 @@ void PInternalServiceImpl<T>::send_data(google::protobuf::RpcController* control
         response->mutable_status()->add_error_msgs("pipe is null");
     } else {
         for (int i = 0; i < request->data_size(); ++i) {
-            const std::string data = request->data(i) + "\n";
-            pipe->append_and_flush(data.c_str(), data.length());
+            PDataRow* row = new PDataRow();
+            row->CopyFrom(request->data(i));
+            pipe->append_and_flush(reinterpret_cast<char*>(&row), sizeof(row), sizeof(row) + row->ByteSize());
         }
         response->mutable_status()->set_status_code(0);
     }

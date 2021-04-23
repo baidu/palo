@@ -266,9 +266,17 @@ message PConstantExprResult {
     map<string, PExprResultMap> expr_result_map = 2;
 };
 
+message PDataColumn {
+    optional string value = 1;
+}
+
+message PDataRow {
+    repeated PDataColumn col = 1;
+}
+
 message PSendDataRequest {
     required PUniqueId fragment_instance_id = 1;
-    repeated string data = 2;
+    repeated PDataRow data = 2;
 }
 
 message PSendDataResult {

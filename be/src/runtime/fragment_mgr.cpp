@@ -475,10 +475,12 @@ Status FragmentMgr::exec_plan_fragment(const TExecPlanFragmentParams& params) {
         stream_load_cxt->auth.auth_code_uuid = params.txn_conf.auth_code_uuid;
         stream_load_cxt->need_commit_self = true;
         stream_load_cxt->need_rollback = true;
+        // total_length == -1 means read one message from pipe in once time, don't care the length.
         auto pipe = std::make_shared<StreamLoadPipe>(
                 1024 * 1024 /* max_buffered_bytes */,
                 64 * 1024 /* min_chunk_size */,
-                0 /* total_length */);
+                -1 /* total_length */,
+                true /* use_proto */);
         stream_load_cxt->body_sink = pipe;
 
         RETURN_IF_ERROR(_exec_env->load_stream_mgr()->put(stream_load_cxt->id, pipe));

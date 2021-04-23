@@ -92,6 +92,7 @@ import org.apache.doris.service.FrontendOptions;
 import org.apache.doris.system.Backend;
 import org.apache.doris.task.LoadEtlTask;
 import org.apache.doris.task.StreamLoadTask;
+import org.apache.doris.thrift.TBrokerRangeDesc;
 import org.apache.doris.thrift.TExecPlanFragmentParams;
 import org.apache.doris.thrift.TFileFormatType;
 import org.apache.doris.thrift.TFileType;
@@ -102,6 +103,7 @@ import org.apache.doris.thrift.TNetworkAddress;
 import org.apache.doris.thrift.TQueryOptions;
 import org.apache.doris.thrift.TQueryType;
 import org.apache.doris.thrift.TResultBatch;
+import org.apache.doris.thrift.TScanRangeParams;
 import org.apache.doris.thrift.TStatusCode;
 import org.apache.doris.thrift.TStreamLoadPutRequest;
 import org.apache.doris.thrift.TTxnParams;
@@ -126,7 +128,6 @@ import org.apache.thrift.TException;
 import java.io.IOException;
 import java.io.StringReader;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -1027,8 +1028,11 @@ public class StmtExecutor {
             }
             for (List<Expr> row : selectStmt.getValueList().getRows()) {
                 ++effectRows;
-                String data = getRowStringValue(row);
-                List<String> dataToSend = context.getTxnEntry().getDataToSend();
+                InternalService.PDataRow data = getRowStringValue(row);
+                if (data == null) {
+                    continue;
+                }
+                List<InternalService.PDataRow> dataToSend = context.getTxnEntry().getDataToSend();
                 dataToSend.add(data);
                 if (dataToSend.size() >= MAX_DATA_TO_SEND_FOR_TXN) {
                     TTxnParams txnConf = context.getTxnEntry().getTxnConf();
@@ -1114,6 +1118,13 @@ public class StmtExecutor {
         txnConf.setFragmentInstanceId(tRequest.params.fragment_instance_id);
         txnConf.setUserIp(backend.getHost());
         tRequest.setTxnConf(txnConf).setImportLabel(label);
+        for (Map.Entry<Integer,List<TScanRangeParams>> entry : tRequest.params.per_node_scan_ranges.entrySet()) {
+            for (TScanRangeParams scanRangeParams : entry.getValue()) {
+                for (TBrokerRangeDesc desc : scanRangeParams.scan_range.broker_scan_range.ranges) {
+                    desc.setFormatType(TFileFormatType.FORMAT_PROTO);
+                }
+            }
+        }
         txnEntry.setBackend(backend);
         TNetworkAddress address = new TNetworkAddress(backend.getHost(), backend.getBrpcPort());
 
@@ -1130,15 +1141,15 @@ public class StmtExecutor {
         }
     }
 
-    public static String getRowStringValue(List<Expr> cols) {
+    public static InternalService.PDataRow getRowStringValue(List<Expr> cols) {
         if (cols.size() == 0) {
-            return "";
+            return null;
         }
-        List<String> vals = new ArrayList<>();
+        InternalService.PDataRow.Builder row = InternalService.PDataRow.newBuilder();
         for (Expr expr : cols) {
-            vals.add(expr.getStringValue());
+            row.addColBuilder().setValue(expr.getStringValue());
         }
-        return String.join("\t", vals);
+        return row.build();
     }
 
     // Process a select statement.
