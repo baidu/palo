@@ -907,6 +907,10 @@ void IRuntimeFilter::init_profile(RuntimeProfile* parent_profile) {
     _effect_timer->start();
 }
 
+void IRuntimeFilter::set_push_down_profile() {
+    _profile->add_info_string("HasPushDownToEngine", "true");
+}
+
 void IRuntimeFilter::ready_for_publish() {
     _wrapper->ready_for_publish();
 }

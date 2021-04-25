@@ -192,6 +192,8 @@ public:
 
     void init_profile(RuntimeProfile* parent_profile);
 
+    void set_push_down_profile();
+
     void ready_for_publish();
 
 protected:

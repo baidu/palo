@@ -84,11 +84,18 @@ Status OlapScanNode::init(const TPlanNode& tnode, RuntimeState* state) {
     }
 
     /// TODO: could one filter used in the different scan_node ?
-    for (const auto& filter_desc : _runtime_filter_descs) {
+    int filter_size = _runtime_filter_descs.size();
+    _runtime_filter_ctxs.resize(filter_size);
+    for (int i = 0; i < filter_size; ++i) {
+        IRuntimeFilter* runtime_filter = nullptr;
+        const auto& filter_desc = _runtime_filter_descs[i];
         RETURN_IF_ERROR(state->runtime_filter_mgr()->regist_filter(RuntimeFilterRole::CONSUMER,
                                                                    filter_desc, id()));
+        RETURN_IF_ERROR(state->runtime_filter_mgr()->get_consume_filter(filter_desc.filter_id,
+                                                                        &runtime_filter));
+
+        _runtime_filter_ctxs[i].runtimefilter = runtime_filter;
     }
-    _runtime_filter_pushed_marks.resize(_runtime_filter_descs.size(), false);
 
     return Status::OK();
 }
@@ -201,7 +208,9 @@ Status OlapScanNode::open(RuntimeState* state) {
 
     _resource_info = ResourceTls::get_resource_tls();
 
-    std::list<ExprContext*> expr_context;
+    // acquire runtime filter
+    _runtime_filter_ctxs.resize(_runtime_filter_descs.size());
+
     for (size_t i = 0; i < _runtime_filter_descs.size(); ++i) {
         auto& filter_desc = _runtime_filter_descs[i];
         IRuntimeFilter* runtime_filter = nullptr;
@@ -215,11 +224,19 @@ Status OlapScanNode::open(RuntimeState* state) {
             ready = runtime_filter->await();
         }
         if (ready) {
+            std::list<ExprContext*> expr_context;
             RETURN_IF_ERROR(runtime_filter->get_push_expr_ctxs(&expr_context));
-            _runtime_filter_pushed_marks[i] = true;
+            _runtime_filter_ctxs[i].apply_mark = true;
+            _runtime_filter_ctxs[i].runtimefilter = runtime_filter;
+
+            for (auto ctx : expr_context) {
+                int index = _conjunct_ctxs.size();
+                _conjunct_ctxs.push_back(ctx);
+                // it's safe to store address from a fix-resized vector
+                _conjunctid_to_runtime_filter_ctxs[index] = &_runtime_filter_ctxs[i];
+            }
         }
     }
-    push_down_predicate(state, &expr_context);
 
     return Status::OK();
 }
@@ -485,6 +502,13 @@ void OlapScanNode::remove_pushed_conjuncts(RuntimeState* state) {
 
     _conjunct_ctxs = std::move(new_conjunct_ctxs);
     _direct_conjunct_size = new_direct_conjunct_size;
+
+    for (auto push_down_ctx : _pushed_conjuncts_index) {
+        auto iter = _conjunctid_to_runtime_filter_ctxs.find(push_down_ctx);
+        if (iter != _conjunctid_to_runtime_filter_ctxs.end()) {
+            iter->second->runtimefilter->set_push_down_profile();
+        }
+    }
 }
 
 void OlapScanNode::eval_const_conjuncts() {
@@ -1480,7 +1504,7 @@ void OlapScanNode::scanner_thread(OlapScanner* scanner) {
     auto& scanner_filter_apply_marks = *scanner->mutable_runtime_filter_marks();
     DCHECK(scanner_filter_apply_marks.size() == _runtime_filter_descs.size());
     for (size_t i = 0; i < scanner_filter_apply_marks.size(); i++) {
-        if (!scanner_filter_apply_marks[i] && !_runtime_filter_pushed_marks[i]) {
+        if (!scanner_filter_apply_marks[i] && !_runtime_filter_ctxs[i].apply_mark) {
             IRuntimeFilter* runtime_filter = nullptr;
             state->runtime_filter_mgr()->get_consume_filter(_runtime_filter_descs[i].filter_id,
                                                             &runtime_filter);
@@ -1488,7 +1512,7 @@ void OlapScanNode::scanner_thread(OlapScanner* scanner) {
             bool ready = runtime_filter->is_ready();
             if (ready) {
                 runtime_filter->get_prepared_context(&contexts, row_desc(), _expr_mem_tracker);
-                scanner_filter_apply_marks[i] = true;
+                _runtime_filter_ctxs[i].apply_mark = true;
             }
         }
     }

@@ -35,6 +35,7 @@
 #include "util/spinlock.h"
 
 namespace doris {
+class IRuntimeFilter;
 
 enum TransferStatus {
     READ_ROWBATCH = 1,
@@ -293,8 +294,14 @@ private:
     // or be overwritten by value in TQueryOptions
     int32_t _max_pushdown_conditions_per_column = 1024;
 
+    struct RuntimeFilterContext {
+        RuntimeFilterContext() : apply_mark(false), runtimefilter(nullptr) {}
+        bool apply_mark;
+        IRuntimeFilter* runtimefilter;
+    };
     std::vector<TRuntimeFilterDesc> _runtime_filter_descs;
-    std::vector<bool> _runtime_filter_pushed_marks;
+    std::vector<RuntimeFilterContext> _runtime_filter_ctxs;
+    std::map<int, RuntimeFilterContext*> _conjunctid_to_runtime_filter_ctxs;
 
     std::unique_ptr<RuntimeProfile> _scanner_profile;
     std::unique_ptr<RuntimeProfile> _segment_profile;
