@@ -43,13 +43,13 @@ import org.apache.doris.qe.ConnectContext;
 import org.apache.doris.qe.QueryState.MysqlStateType;
 import org.apache.doris.utframe.UtFrameUtils;
 
+import com.google.common.collect.Lists;
+
 import org.apache.commons.lang3.StringUtils;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
-
-import com.google.common.collect.Lists;
 
 import java.io.File;
 import java.util.List;
@@ -1316,13 +1316,13 @@ public class QueryPlanTest {
         // ShuffleJoin disable runtime filter
         connectContext.getSessionVariable().setPreferJoinMethod("shuffle");
         explainString = UtFrameUtils.getSQLPlanOrErrorMsg(connectContext, queryStr);
-        Assert.assertTrue(explainString.contains("runtime filter: false"));
+        Assert.assertTrue(explainString.contains("runtime filter: true"));
 
 
         Deencapsulation.setField(connectContext.getSessionVariable(), "enableRuntimeFilterMode", false);
         connectContext.getSessionVariable().setPreferJoinMethod("broadcast");
         explainString = UtFrameUtils.getSQLPlanOrErrorMsg(connectContext, queryStr);
-        Assert.assertTrue(explainString.contains("runtime filter: false"));
+        Assert.assertTrue(explainString.contains("runtime filter: true"));
     }
 
     @Test
