@@ -1049,8 +1049,11 @@ public class StmtExecutor implements ProfileWriter {
         int effectRows = 0;
         if (selectStmt.getValueList() != null) {
             Table tbl = context.getTxnEntry().getTable();
+            int schemaSize = tbl.getBaseSchema(false).size();
             for (List<Expr> row : selectStmt.getValueList().getRows()) {
-                if (tbl.getFullSchema().size() != row.size()) {
+                // the value columns are columns which are visible to user, so here we use
+                // getBaseSchema(), not getFullSchema()
+                if (schemaSize != row.size()) {
                     throw new TException("Column count doesn't match value count");
                 }
             }
