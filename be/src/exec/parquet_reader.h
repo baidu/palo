@@ -78,7 +78,8 @@ public:
     void close();
     Status size(int64_t* size);
     Status init_parquet_reader(const std::vector<SlotDescriptor*>& tuple_slot_descs,
-                               const std::string& timezone);
+        const std::string& timezone, bool use_id,
+        const std::map<int32_t, std::string>& schema_id_to_name_map);
 
 private:
     void fill_slot(Tuple* tuple, SlotDescriptor* slot_desc, MemPool* mem_pool, const uint8_t* value,
@@ -101,6 +102,12 @@ private:
     std::shared_ptr<parquet::FileMetaData> _file_metadata;
     std::map<std::string, int> _map_column; // column-name <---> column-index
     std::vector<int> _parquet_column_ids;
+    // _parquet_valid_column_ids is a subcollection of _parquet_column_ids,
+    // if _use_id is false, _parquet_valid_column_ids == _parquet_column_ids,
+    // if _use_id is true, check column id in parquet file, the column id in schema_id_to_name is valid,
+    //      only valid id is in _parquet_valid_column_ids,
+    //      _parquet_column_ids will contains all id whether or not it is valid.
+    std::vector<int> _parquet_valid_column_ids;
     std::vector<arrow::Type::type> _parquet_column_type;
     int _total_groups; // groups in a parquet file
     int _current_group;
@@ -110,6 +117,10 @@ private:
     int _current_line_of_batch;
 
     std::string _timezone;
+
+    // whether use id to read data or not. if _use_id is true, check the id in parquet file,
+    // if it is in schema_id_to_name, it is valid. when the value is read from
+    bool _use_id = false;
 };
 
 } // namespace doris

@@ -35,6 +35,7 @@
 namespace doris {
 
 // Broker
+const int32 INVALID_COLUMN_ID = -1;
 
 ParquetReaderWrap::ParquetReaderWrap(FileReader* file_reader, int32_t num_of_columns_from_file)
         : _num_of_columns_from_file(num_of_columns_from_file),
@@ -52,8 +53,10 @@ ParquetReaderWrap::ParquetReaderWrap(FileReader* file_reader, int32_t num_of_col
 ParquetReaderWrap::~ParquetReaderWrap() {
     close();
 }
+
 Status ParquetReaderWrap::init_parquet_reader(const std::vector<SlotDescriptor*>& tuple_slot_descs,
-                                              const std::string& timezone) {
+        const std::string& timezone, bool use_id,
+        const std::map<int32_t, std::string>& schema_id_to_name_map) {
     try {
         // new file reader for parquet file
         auto st = parquet::arrow::FileReader::Make(
@@ -73,13 +76,21 @@ Status ParquetReaderWrap::init_parquet_reader(const std::vector<SlotDescriptor*>
         _rows_of_group = _file_metadata->RowGroup(0)->num_rows();
 
         // map
+        _use_id = use_id;
         auto* schemaDescriptor = _file_metadata->schema();
         for (int i = 0; i < _file_metadata->num_columns(); ++i) {
             // Get the Column Reader for the boolean column
             if (schemaDescriptor->Column(i)->max_definition_level() > 1) {
                 _map_column.emplace(schemaDescriptor->Column(i)->path()->ToDotVector()[0], i);
             } else {
-                _map_column.emplace(schemaDescriptor->Column(i)->name(), i);
+                if (use_id) {
+                    int32 column_id = schemaDescriptor->Column(i)->schema_node()->id();
+                    if (schema_id_to_name_map.find(column_id) != schema_id_to_name_map.end()) {
+                        _map_column.emplace(schemaDescriptor->Column(i)->name(), i);
+                    }
+                } else {
+                    _map_column.emplace(schemaDescriptor->Column(i)->name(), i);
+                }
             }
         }
 
@@ -89,7 +100,7 @@ Status ParquetReaderWrap::init_parquet_reader(const std::vector<SlotDescriptor*>
             RETURN_IF_ERROR(column_indices(tuple_slot_descs));
             // read batch
             arrow::Status status = _reader->GetRecordBatchReader({_current_group},
-                                                                 _parquet_column_ids, &_rb_batch);
+                                                                 _parquet_valid_column_ids, &_rb_batch);
             if (!status.ok()) {
                 LOG(WARNING) << "Get RecordBatch Failed. " << status.ToString();
                 return Status::InternalError(status.ToString());
@@ -102,13 +113,19 @@ Status ParquetReaderWrap::init_parquet_reader(const std::vector<SlotDescriptor*>
             _current_line_of_batch = 0;
             //save column type
             std::shared_ptr<arrow::Schema> field_schema = _batch->schema();
+            int column_index = 0;
             for (int i = 0; i < _parquet_column_ids.size(); i++) {
-                std::shared_ptr<arrow::Field> field = field_schema->field(i);
+                if (use_id && _parquet_column_ids.at(i) == INVALID_COLUMN_ID) {
+                    _parquet_column_type.emplace_back(arrow::Type::type::NA);
+                    continue;
+                }
+                std::shared_ptr<arrow::Field> field = field_schema->field(column_index);
                 if (!field) {
-                    LOG(WARNING) << "Get field schema failed. Column order:" << i;
+                    LOG(WARNING) << "Get field schema failed. Column order:" << column_index;
                     return Status::InternalError(status.ToString());
                 }
                 _parquet_column_type.emplace_back(field->type()->id());
+                ++column_index;
             }
         }
         return Status::OK();
@@ -142,17 +159,23 @@ inline void ParquetReaderWrap::fill_slot(Tuple* tuple, SlotDescriptor* slot_desc
 
 Status ParquetReaderWrap::column_indices(const std::vector<SlotDescriptor*>& tuple_slot_descs) {
     _parquet_column_ids.clear();
+    _parquet_valid_column_ids.clear();
     for (int i = 0; i < _num_of_columns_from_file; i++) {
         auto slot_desc = tuple_slot_descs.at(i);
         // Get the Column Reader for the boolean column
         auto iter = _map_column.find(slot_desc->col_name());
         if (iter != _map_column.end()) {
             _parquet_column_ids.emplace_back(iter->second);
+            _parquet_valid_column_ids.emplace_back(iter->second);
         } else {
-            std::stringstream str_error;
-            str_error << "Invalid Column Name:" << slot_desc->col_name();
-            LOG(WARNING) << str_error.str();
-            return Status::InvalidArgument(str_error.str());
+            if (_use_id) {
+                _parquet_column_ids.emplace_back(INVALID_COLUMN_ID);
+            } else {
+                std::stringstream str_error;
+                str_error << "Invalid Column Name:" << slot_desc->col_name();
+                LOG(WARNING) << str_error.str();
+                return Status::InvalidArgument(str_error.str());
+            }
         }
     }
     return Status::OK();
@@ -180,6 +203,7 @@ Status ParquetReaderWrap::read_record_batch(const std::vector<SlotDescriptor*>& 
         _current_group++;
         if (_current_group >= _total_groups) { // read completed.
             _parquet_column_ids.clear();
+            _parquet_valid_column_ids.clear();
             *eof = true;
             return Status::OK();
         }
@@ -188,7 +212,7 @@ Status ParquetReaderWrap::read_record_batch(const std::vector<SlotDescriptor*>& 
                                  ->num_rows(); //get rows of the current row group
         // read batch
         arrow::Status status =
-                _reader->GetRecordBatchReader({_current_group}, _parquet_column_ids, &_rb_batch);
+                _reader->GetRecordBatchReader({_current_group}, _parquet_valid_column_ids, &_rb_batch);
         if (!status.ok()) {
             return Status::InternalError("Get RecordBatchReader Failed.");
         }
@@ -260,7 +284,6 @@ Status ParquetReaderWrap::read(Tuple* tuple, const std::vector<SlotDescriptor*>&
         size_t slots = _parquet_column_ids.size();
         for (size_t i = 0; i < slots; ++i) {
             auto slot_desc = tuple_slot_descs[i];
-            column_index = i; // column index in batch record
             switch (_parquet_column_type[i]) {
             case arrow::Type::type::STRING: {
                 auto str_array =
@@ -502,6 +525,9 @@ Status ParquetReaderWrap::read(Tuple* tuple, const std::vector<SlotDescriptor*>&
                 }
                 break;
             }
+            case arrow::Type::type::NA: {
+                RETURN_IF_ERROR(set_field_null(tuple, slot_desc));
+            }
             default: {
                 // other type not support.
                 std::stringstream str_error;
@@ -514,6 +540,7 @@ Status ParquetReaderWrap::read(Tuple* tuple, const std::vector<SlotDescriptor*>&
                 return Status::InternalError(str_error.str());
             }
             }
+            ++column_index;
         }
     } catch (parquet::ParquetException& e) {
         std::stringstream str_error;

@@ -177,7 +177,9 @@ Status ParquetScanner::open_next_reader() {
             _cur_file_reader = new ParquetReaderWrap(file_reader.release(), _src_slot_descs.size());
         }
 
-        Status status = _cur_file_reader->init_parquet_reader(_src_slot_descs, _state->timezone());
+        Status status = _cur_file_reader->init_parquet_reader(
+                _src_slot_descs, _state->timezone(), range.parquet_use_id,
+                range.schema_id_to_name);
 
         if (status.is_end_of_file()) {
             continue;
