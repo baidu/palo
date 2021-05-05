@@ -275,7 +275,7 @@ public class OdbcTable extends Table {
                         "utf8");
                 break;
             case POSTGRESQL:
-                connectString = String.format("Driver=%s;Server=%s;Port=%s;DataBase=%s;Uid=%s;Pwd=%s;charset=%s",
+                connectString = String.format("Driver=%s;Server=%s;Port=%s;DataBase=%s;Uid=%s;Pwd=%s;charset=%s;UseDeclareFetch=1;Fetch=4096",
                         getOdbcDriver(),
                         getHost(),
                         getPort(),
@@ -283,6 +283,7 @@ public class OdbcTable extends Table {
                         getUserName(),
                         getPasswd(),
                         "utf8");
+                break;
             case MYSQL:
                 connectString = String.format("Driver=%s;Server=%s;Port=%s;DataBase=%s;Uid=%s;Pwd=%s;charset=%s;forward_cursor=1;no_cache=1",
                         getOdbcDriver(),
