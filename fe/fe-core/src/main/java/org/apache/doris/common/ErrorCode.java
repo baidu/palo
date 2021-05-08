@@ -243,7 +243,9 @@ public enum ErrorCode {
     ERROR_LDAP_CONFIGURATION_ERR(5080, new byte[] {'4', '2', '0', '0', '0'},
             "LDAP configuration is incorrect or LDAP admin password is not set."),
     ERROR_LDAP_USER_NOT_UNIQUE_ERR(5081, new byte[] {'4', '2', '0', '0', '0'},
-            "%s is not unique in LDAP server.");
+            "%s is not unique in LDAP server."),
+    ERROR_DYNAMIC_PARTITION_CREATE_HISTORY_PARTITION(5074, new byte[]{'4', '2', '0', '0', '0'},
+            "Invalid dynamic partition create_history_partition: %s. Expected true or false");
 
     ErrorCode(int code, byte[] sqlState, String errorMsg) {
         this.code = code;
