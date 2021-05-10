@@ -25,10 +25,8 @@ import org.apache.doris.catalog.Database;
 import org.apache.doris.catalog.OlapTable;
 import org.apache.doris.common.AnalysisException;
 import org.apache.doris.common.DdlException;
-import org.apache.doris.common.DuplicatedRequestException;
 import org.apache.doris.common.ErrorCode;
 import org.apache.doris.common.ErrorReport;
-import org.apache.doris.common.LabelAlreadyUsedException;
 import org.apache.doris.common.UserException;
 import org.apache.doris.common.util.DebugUtil;
 import org.apache.doris.common.util.TimeUtils;
@@ -39,7 +37,6 @@ import org.apache.doris.service.FrontendOptions;
 import org.apache.doris.task.LoadEtlTask;
 import org.apache.doris.thrift.TQueryType;
 import org.apache.doris.thrift.TUniqueId;
-import org.apache.doris.transaction.BeginTransactionException;
 import org.apache.doris.transaction.GlobalTransactionMgr;
 import org.apache.doris.transaction.TabletCommitInfo;
 import org.apache.doris.transaction.TransactionCommitFailedException;
@@ -109,8 +106,7 @@ public class UpdateStmtExecutor {
         commitAndPublishTxn();
     }
 
-    private void beginTxn() throws LabelAlreadyUsedException, AnalysisException, BeginTransactionException,
-            DuplicatedRequestException {
+    private void beginTxn() throws UserException {
         LOG.info("begin transaction for update stmt, query id:{}", DebugUtil.printId(queryId));
         MetricRepo.COUNTER_LOAD_ADD.increase(1L);
         label = "update_" + DebugUtil.printId(queryId);
