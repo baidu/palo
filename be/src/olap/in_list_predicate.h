@@ -33,11 +33,7 @@ namespace std {
 // for string value
 template <>
 struct hash<doris::StringValue> {
-    uint64_t operator()(const doris::StringValue& rhs) const {
-        uint64_t hash_val;
-        murmur_hash3_x64_64(rhs.ptr, rhs.len, 0, &hash_val);
-        return hash_val;
-    }
+    uint64_t operator()(const doris::StringValue& rhs) const { return hash_value(rhs); }
 };
 
 template <>
@@ -81,21 +77,23 @@ namespace doris {
 
 class VectorizedRowBatch;
 
-#define IN_LIST_PRED_CLASS_DEFINE(CLASS)                                                 \
-    template <class type>                                                                \
-    class CLASS : public ColumnPredicate {                                               \
-    public:                                                                              \
-        CLASS(uint32_t column_id, std::unordered_set<type>&& values, bool is_opposite = false);    \
-        virtual void evaluate(VectorizedRowBatch* batch) const override;                 \
-        void evaluate(ColumnBlock* block, uint16_t* sel, uint16_t* size) const override; \
-        void evaluate_or(ColumnBlock* block, uint16_t* sel, uint16_t size, bool* flags) const override;\
-        void evaluate_and(ColumnBlock* block, uint16_t* sel, uint16_t size, bool* flags) const override;\
-        virtual Status evaluate(const Schema& schema,                                    \
-                                const std::vector<BitmapIndexIterator*>& iterators,      \
-                                uint32_t num_rows, Roaring* bitmap) const override;      \
-                                                                                         \
-    private:                                                                             \
-        std::unordered_set<type> _values;                                                \
+#define IN_LIST_PRED_CLASS_DEFINE(CLASS)                                                        \
+    template <class type>                                                                       \
+    class CLASS : public ColumnPredicate {                                                      \
+    public:                                                                                     \
+        CLASS(uint32_t column_id, std::unordered_set<type>&& values, bool is_opposite = false); \
+        virtual void evaluate(VectorizedRowBatch* batch) const override;                        \
+        void evaluate(ColumnBlock* block, uint16_t* sel, uint16_t* size) const override;        \
+        void evaluate_or(ColumnBlock* block, uint16_t* sel, uint16_t size,                      \
+                         bool* flags) const override;                                           \
+        void evaluate_and(ColumnBlock* block, uint16_t* sel, uint16_t size,                     \
+                          bool* flags) const override;                                          \
+        virtual Status evaluate(const Schema& schema,                                           \
+                                const std::vector<BitmapIndexIterator*>& iterators,             \
+                                uint32_t num_rows, Roaring* bitmap) const override;             \
+                                                                                                \
+    private:                                                                                    \
+        std::unordered_set<type> _values;                                                       \
     };
 
 IN_LIST_PRED_CLASS_DEFINE(InListPredicate)

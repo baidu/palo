@@ -17,6 +17,7 @@
 
 #include "exec/hash_join_node.h"
 #include "exec/hash_table.hpp"
+#include "exprs/expr_context.h"
 #include "runtime/row_batch.h"
 
 namespace doris {
@@ -117,6 +118,10 @@ int HashJoinNode::process_probe_batch(RowBatch* out_batch, RowBatch* probe_batch
             // Advance to the next probe row
             if (UNLIKELY(_probe_batch_pos == probe_rows)) {
                 goto end;
+            }
+            if (++_probe_counter % _release_context_counter == 0) {
+                ExprContext::free_local_allocations(_probe_expr_ctxs);
+                ExprContext::free_local_allocations(_build_expr_ctxs);
             }
 
             _current_probe_row = probe_batch->get_row(_probe_batch_pos++);

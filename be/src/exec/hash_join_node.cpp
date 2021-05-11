@@ -14,9 +14,9 @@
 // KIND, either express or implied.  See the License for the
 // specific language governing permissions and limitations
 // under the License.
-
 #include "exec/hash_join_node.h"
 
+#include <memory>
 #include <sstream>
 
 #include "exec/hash_table.hpp"
@@ -27,7 +27,9 @@
 #include "exprs/slot_ref.h"
 #include "gen_cpp/PlanNodes_types.h"
 #include "runtime/row_batch.h"
+#include "runtime/runtime_filter_mgr.h"
 #include "runtime/runtime_state.h"
+#include "util/defer_op.h"
 #include "util/runtime_profile.h"
 
 namespace doris {
@@ -35,6 +37,7 @@ namespace doris {
 HashJoinNode::HashJoinNode(ObjectPool* pool, const TPlanNode& tnode, const DescriptorTbl& descs)
         : ExecNode(pool, tnode, descs),
           _join_op(tnode.hash_join_node.join_op),
+          _probe_counter(0),
           _probe_eos(false),
           _process_build_batch_fn(NULL),
           _process_probe_batch_fn(NULL),
@@ -44,8 +47,9 @@ HashJoinNode::HashJoinNode(ObjectPool* pool, const TPlanNode& tnode, const Descr
     _match_one_build = (_join_op == TJoinOp::LEFT_SEMI_JOIN);
     _match_all_build =
             (_join_op == TJoinOp::RIGHT_OUTER_JOIN || _join_op == TJoinOp::FULL_OUTER_JOIN);
-    _is_push_down = tnode.hash_join_node.is_push_down;
     _build_unique = _join_op == TJoinOp::LEFT_ANTI_JOIN || _join_op == TJoinOp::LEFT_SEMI_JOIN;
+
+    _runtime_filter_descs = tnode.runtime_filters;
 }
 
 HashJoinNode::~HashJoinNode() {
@@ -81,7 +85,10 @@ Status HashJoinNode::init(const TPlanNode& tnode, RuntimeState* state) {
         _build_unique = false;
     }
 
-    init_runtime_filter_status();
+    for (const auto& filter_desc : _runtime_filter_descs) {
+        RETURN_IF_ERROR(state->runtime_filter_mgr()->regist_filter(RuntimeFilterRole::PRODUCER,
+                                                                   filter_desc));
+    }
 
     return Status::OK();
 }
@@ -172,18 +179,6 @@ Status HashJoinNode::close(RuntimeState* state) {
     return ExecNode::close(state);
 }
 
-void HashJoinNode::init_runtime_filter_status() {
-    // The predicate could not be pushed down when there is Null-safe equal operator.
-    // The in predicate will filter the null value in child[0] while it is needed in the Null-safe equal join.
-    // For example: select * from a join b where a.id<=>b.id
-    // the null value in table a should be return by scan node instead of filtering it by In-predicate.
-    if (std::find(_is_null_safe_eq_join.begin(), _is_null_safe_eq_join.end(), true) !=
-        _is_null_safe_eq_join.end()) {
-        _is_push_down = false;
-    }
-
-}
-
 void HashJoinNode::build_side_thread(RuntimeState* state, boost::promise<Status>* status) {
     status->set_value(construct_hash_table(state));
     // Release the thread token as soon as possible (before the main thread joins
@@ -200,11 +195,16 @@ Status HashJoinNode::construct_hash_table(RuntimeState* state) {
     RowBatch build_batch(child(1)->row_desc(), state->batch_size(), mem_tracker().get());
     RETURN_IF_ERROR(child(1)->open(state));
 
+    SCOPED_TIMER(_build_timer);
+    DeferOp defer([&] {
+        COUNTER_SET(_build_rows_counter, _hash_tbl->size());
+        COUNTER_SET(_build_buckets_counter, _hash_tbl->num_buckets());
+        COUNTER_SET(_hash_tbl_load_factor_counter, _hash_tbl->load_factor());
+    });
     while (true) {
         RETURN_IF_CANCELLED(state);
         bool eos = true;
         RETURN_IF_ERROR(child(1)->get_next(state, &build_batch, &eos));
-        SCOPED_TIMER(_build_timer);
         // take ownership of tuple data of build_batch
         _build_pool->acquire_data(build_batch.tuple_data_pool(), false);
         RETURN_IF_LIMIT_EXCEEDED(state, "Hash join, while constructing the hash table.");
@@ -212,9 +212,6 @@ Status HashJoinNode::construct_hash_table(RuntimeState* state) {
 
         VLOG_ROW << _hash_tbl->debug_string(true, &child(1)->row_desc());
 
-        COUNTER_SET(_build_rows_counter, _hash_tbl->size());
-        COUNTER_SET(_build_buckets_counter, _hash_tbl->num_buckets());
-        COUNTER_SET(_hash_tbl_load_factor_counter, _hash_tbl->load_factor());
         build_batch.reset();
 
         if (eos) {
@@ -250,65 +247,28 @@ Status HashJoinNode::open(RuntimeState* state) {
         thread_status.set_value(construct_hash_table(state));
     }
 
+    if (!_runtime_filter_descs.empty()) {
+        RuntimeFilterSlots runtime_filter_slots(_probe_expr_ctxs, _build_expr_ctxs,
+                                                _runtime_filter_descs);
 
-    if (_is_push_down) {
-        // Blocks until ConstructHashTable has returned, after which
-        // the hash table is fully constructed and we can start the probe
-        // phase.
         RETURN_IF_ERROR(thread_status.get_future().get());
-
-        if (_hash_tbl->size() == 0 && _join_op == TJoinOp::INNER_JOIN) {
-            // Hash table size is zero
-            LOG(INFO) << "No element need to push down, no need to read probe table";
-            RETURN_IF_ERROR(child(0)->open(state));
-            _probe_batch_pos = 0;
-            _hash_tbl_iterator = _hash_tbl->begin();
-            _eos = true;
-            return Status::OK();
-        }
-
-        // 1. Create runtime filter for each probe expr
-        RuntimeFilter runtime_filter(state, expr_mem_tracker().get(), _pool);
-        for (int i = 0; i < _probe_expr_ctxs.size(); ++i) {
-            if (_hash_tbl->size() <= config::runtime_filter_max_in_num) {
-                runtime_filter.create_runtime_predicate(RuntimeFilterType::IN_FILTER, i,
-                                                        _probe_expr_ctxs[i], _hash_tbl->size());
-            } else {
-                runtime_filter.create_runtime_predicate(RuntimeFilterType::BLOOM_FILTER, i,
-                                                        _probe_expr_ctxs[i], _hash_tbl->size());
-                runtime_filter.create_runtime_predicate(RuntimeFilterType::MINMAX_FILTER, i,
-                                                        _probe_expr_ctxs[i], _hash_tbl->size());
-            }
-        }
-
-        // 2. Insert value to Runtime Filter
+        RETURN_IF_ERROR(runtime_filter_slots.init(state, _pool, expr_mem_tracker().get(),
+                                                  _hash_tbl->size()));
         {
             SCOPED_TIMER(_push_compute_timer);
             HashTable::Iterator iter = _hash_tbl->begin();
 
             while (iter.has_next()) {
                 TupleRow* row = iter.get_row();
-
-                for (int i = 0; i < _build_expr_ctxs.size(); ++i) {
-                    //TODO may be we could use the the result from hash table
-                    // to reduce caculate build_expr_ctxs
-                    void* val = _build_expr_ctxs[i]->get_value(row);
-                    runtime_filter.insert(i, val);
-                }
-
-                SCOPED_TIMER(_build_timer);
+                runtime_filter_slots.insert(row);
                 iter.next<false>();
             }
         }
-
-        // 3. Push down runtime filter to child
-        SCOPED_TIMER(_push_down_timer);
-        runtime_filter.get_push_expr_ctxs(&_push_down_expr_ctxs);
-        push_down_predicate(state, &_push_down_expr_ctxs);
-
-        // Open the probe-side child so that it may perform any initialisation in parallel.
-        // Don't exit even if we see an error, we still need to wait for the build thread
-        // to finish.
+        COUNTER_UPDATE(_build_timer, _push_compute_timer->value());
+        {
+            SCOPED_TIMER(_push_down_timer);
+            runtime_filter_slots.publish(this);
+        }
         Status open_status = child(0)->open(state);
         RETURN_IF_ERROR(open_status);
     } else {
@@ -358,6 +318,7 @@ Status HashJoinNode::open(RuntimeState* state) {
 Status HashJoinNode::get_next(RuntimeState* state, RowBatch* out_batch, bool* eos) {
     RETURN_IF_ERROR(exec_debug_action(TExecNodePhase::GETNEXT));
     RETURN_IF_CANCELLED(state);
+    RETURN_IF_LIMIT_EXCEEDED(state, "Hash join, while execute get_next.");
     SCOPED_TIMER(_runtime_profile->total_time_counter());
 
     if (reached_limit()) {
@@ -602,6 +563,7 @@ Status HashJoinNode::left_join_get_next(RuntimeState* state, RowBatch* out_batch
     *eos = _eos;
 
     ScopedTimer<MonotonicStopWatch> probe_timer(_probe_timer);
+    DeferOp defer([&] { COUNTER_SET(_rows_returned_counter, _num_rows_returned); });
 
     while (!_eos) {
         // Compute max rows that should be added to out_batch
@@ -612,16 +574,7 @@ Status HashJoinNode::left_join_get_next(RuntimeState* state, RowBatch* out_batch
         }
 
         // Continue processing this row batch
-        if (_process_probe_batch_fn == NULL) {
-            _num_rows_returned +=
-                    process_probe_batch(out_batch, _probe_batch.get(), max_added_rows);
-            COUNTER_SET(_rows_returned_counter, _num_rows_returned);
-        } else {
-            // Use codegen'd function
-            _num_rows_returned +=
-                    _process_probe_batch_fn(this, out_batch, _probe_batch.get(), max_added_rows);
-            COUNTER_SET(_rows_returned_counter, _num_rows_returned);
-        }
+        _num_rows_returned += process_probe_batch(out_batch, _probe_batch.get(), max_added_rows);
 
         if (reached_limit() || out_batch->is_full()) {
             *eos = reached_limit();

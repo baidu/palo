@@ -247,7 +247,7 @@ CONF_mInt32(base_compaction_write_mbytes_per_sec, "5");
 // lower write amplification, trading off read amplification and space amplification.
 CONF_mString(cumulative_compaction_policy, "size_based");
 CONF_Validator(cumulative_compaction_policy, [](const std::string config) -> bool {
-  return config == "size_based" || config == "num_based";
+    return config == "size_based" || config == "num_based";
 });
 
 // In size_based policy, output rowset of cumulative compaction total disk size exceed this config size,
@@ -584,9 +584,6 @@ CONF_mInt32(max_tablet_version_num, "500");
 // the thrift_server_type_of_fe should be set THREADED_SELECTOR to make be thrift client to fe constructed with TFramedTransport
 CONF_String(thrift_server_type_of_fe, "THREAD_POOL");
 
-// if the right table is less than this value in the hash join, 
-// the in expression can be used to push down to the storage engine
-CONF_mInt32(runtime_filter_max_in_num, "1024");
 // disable zone map index when page row is too few
 CONF_mInt32(zone_map_row_num_threshold, "20");
 
@@ -605,9 +602,11 @@ CONF_mInt32(buffered_reader_buffer_size_bytes, "1048576");
 //    Trace = 6
 CONF_Int32(aws_log_level, "3");
 
+// if set runtime_filter_use_async_rpc true, publish runtime filter will be a async method
+// else we will call sync method
+CONF_mBool(runtime_filter_use_async_rpc, "true");
 } // namespace config
 
 } // namespace doris
 
 #endif // DORIS_BE_SRC_COMMON_CONFIG_H
-

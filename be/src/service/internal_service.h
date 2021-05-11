@@ -89,22 +89,24 @@ public:
                      PCacheResponse* response, google::protobuf::Closure* done) override;
 
     void fold_constant_expr(google::protobuf::RpcController* controller,
-                            const PConstantExprRequest* request,
-                            PConstantExprResult* response,
+                            const PConstantExprRequest* request, PConstantExprResult* response,
                             google::protobuf::Closure* done) override;
+    void merge_filter(::google::protobuf::RpcController* controller,
+                      const ::doris::PMergeFilterRequest* request,
+                      ::doris::PMergeFilterResponse* response,
+                      ::google::protobuf::Closure* done) override;
+    void apply_filter(::google::protobuf::RpcController* controller,
+                      const ::doris::PPublishFilterRequest* request,
+                      ::doris::PPublishFilterResponse* response,
+                      ::google::protobuf::Closure* done) override;
 
-    void send_data(google::protobuf::RpcController* controller,
-                   const PSendDataRequest* request,
-                   PSendDataResult* response,
-                   google::protobuf::Closure* done);
-    void commit(google::protobuf::RpcController* controller,
-                const PCommitRequest* request,
-                PCommitResult* response,
-                google::protobuf::Closure* done);
-    void rollback(google::protobuf::RpcController* controller,
-                  const PRollbackRequest* request,
-                  PRollbackResult* response,
-                  google::protobuf::Closure* done);
+    void send_data(google::protobuf::RpcController* controller, const PSendDataRequest* request,
+                   PSendDataResult* response, google::protobuf::Closure* done);
+    void commit(google::protobuf::RpcController* controller, const PCommitRequest* request,
+                PCommitResult* response, google::protobuf::Closure* done);
+    void rollback(google::protobuf::RpcController* controller, const PRollbackRequest* request,
+                  PRollbackResult* response, google::protobuf::Closure* done);
+
 private:
     Status _exec_plan_fragment(const std::string& s_request);
 

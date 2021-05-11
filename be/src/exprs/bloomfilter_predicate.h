@@ -17,6 +17,7 @@
 
 #ifndef DORIS_BE_SRC_QUERY_EXPRS_BLOOM_PREDICATE_H
 #define DORIS_BE_SRC_QUERY_EXPRS_BLOOM_PREDICATE_H
+#include <algorithm>
 #include <memory>
 #include <string>
 
@@ -30,36 +31,111 @@ namespace doris {
 /// only used in Runtime Filter
 class BloomFilterFuncBase {
 public:
-    BloomFilterFuncBase(MemTracker* tracker) : _tracker(tracker) {};
-    virtual ~BloomFilterFuncBase() { _tracker->Release(_bloom_filter_alloced); }
+    BloomFilterFuncBase(MemTracker* tracker) : _tracker(tracker), _inited(false) {};
+
+    virtual ~BloomFilterFuncBase() {
+        if (_tracker != nullptr) {
+            _tracker->Release(_bloom_filter_alloced);
+        }
+    }
 
     // init a bloom filter with expect element num
     virtual Status init(int64_t expect_num = 4096, double fpp = 0.05) {
-        DCHECK(expect_num >= 0);
-        // we need alloc 'optimal_bit_num(expect_num,fpp) / 8' bytes
+        DCHECK(!_inited);
+        DCHECK(expect_num >= 0); // we need alloc 'optimal_bit_num(expect_num,fpp) / 8' bytes
         _bloom_filter_alloced =
                 doris::segment_v2::BloomFilter::optimal_bit_num(expect_num, fpp) / 8;
+
+        std::unique_ptr<doris::segment_v2::BloomFilter> bloom_filter;
         Status st = doris::segment_v2::BloomFilter::create(
-                doris::segment_v2::BloomFilterAlgorithmPB::BLOCK_BLOOM_FILTER, &_bloom_filter);
-        // status is always true if we use valid BloomFilterAlgorithmPB 
+                doris::segment_v2::BloomFilterAlgorithmPB::BLOCK_BLOOM_FILTER, &bloom_filter);
+        // status is always true if we use valid BloomFilterAlgorithmPB
         DCHECK(st.ok());
-        st = _bloom_filter->init(_bloom_filter_alloced,
-                                 doris::segment_v2::HashStrategyPB::HASH_MURMUR3_X64_64);
+        RETURN_IF_ERROR(st);
+        st = bloom_filter->init(_bloom_filter_alloced,
+                                doris::segment_v2::HashStrategyPB::HASH_MURMUR3_X64_64);
         // status is always true if we use HASH_MURMUR3_X64_64
         DCHECK(st.ok());
+        _bloom_filter.reset(bloom_filter.release());
         _tracker->Consume(_bloom_filter_alloced);
+        _inited = true;
         return st;
     }
+
+    virtual Status init_with_fixed_length(int64_t bloom_filter_length) {
+        DCHECK(!_inited);
+        DCHECK(bloom_filter_length >= 0);
+
+        std::unique_ptr<doris::segment_v2::BloomFilter> bloom_filter;
+        _bloom_filter_alloced = bloom_filter_length;
+        Status st = doris::segment_v2::BloomFilter::create(
+                doris::segment_v2::BloomFilterAlgorithmPB::BLOCK_BLOOM_FILTER, &bloom_filter);
+        DCHECK(st.ok());
+        st = bloom_filter->init(_bloom_filter_alloced,
+                                doris::segment_v2::HashStrategyPB::HASH_MURMUR3_X64_64);
+        DCHECK(st.ok());
+        _tracker->Consume(_bloom_filter_alloced);
+        _bloom_filter.reset(bloom_filter.release());
+        _inited = true;
+        return st;
+    }
+
     virtual void insert(const void* data) = 0;
+
     virtual bool find(const void* data) = 0;
+
+    // Because the data structures of the execution layer and the storage layer are inconsistent,
+    // we need to provide additional interfaces for the storage layer to call
+    virtual bool find_olap_engine(const void* data) { return this->find(data); }
+
+    Status merge(BloomFilterFuncBase* bloomfilter_func) {
+        DCHECK(_inited);
+        if (_bloom_filter == nullptr) {
+            std::unique_ptr<doris::segment_v2::BloomFilter> bloom_filter;
+            RETURN_IF_ERROR(doris::segment_v2::BloomFilter::create(
+                    doris::segment_v2::BloomFilterAlgorithmPB::BLOCK_BLOOM_FILTER, &bloom_filter));
+            _bloom_filter.reset(bloom_filter.release());
+        }
+        if (_bloom_filter_alloced != bloomfilter_func->_bloom_filter_alloced) {
+            LOG(WARNING) << "bloom filter size not the same";
+            return Status::InvalidArgument("bloom filter size invalid");
+        }
+        return _bloom_filter->merge(bloomfilter_func->_bloom_filter.get());
+    }
+
+    Status assign(const char* data, int len) {
+        if (_bloom_filter == nullptr) {
+            std::unique_ptr<doris::segment_v2::BloomFilter> bloom_filter;
+            RETURN_IF_ERROR(doris::segment_v2::BloomFilter::create(
+                    doris::segment_v2::BloomFilterAlgorithmPB::BLOCK_BLOOM_FILTER, &bloom_filter));
+            _bloom_filter.reset(bloom_filter.release());
+        }
+        _bloom_filter_alloced = len - 1;
+        _tracker->Consume(_bloom_filter_alloced);
+        return _bloom_filter->init(data, len,
+                                   doris::segment_v2::HashStrategyPB::HASH_MURMUR3_X64_64);
+    }
     /// create a bloom filter function
+    /// tracker shouldn't be nullptr
     static BloomFilterFuncBase* create_bloom_filter(MemTracker* tracker, PrimitiveType type);
+
+    Status get_data(char** data, int* len);
+
+    MemTracker* tracker() { return _tracker; }
+
+    void light_copy(BloomFilterFuncBase* other) {
+        _tracker = nullptr;
+        _bloom_filter_alloced = other->_bloom_filter_alloced;
+        _bloom_filter = other->_bloom_filter;
+        _inited = other->_inited;
+    }
 
 protected:
     MemTracker* _tracker;
     // bloom filter size
     int32_t _bloom_filter_alloced;
-    std::unique_ptr<doris::segment_v2::BloomFilter> _bloom_filter;
+    std::shared_ptr<doris::segment_v2::BloomFilter> _bloom_filter;
+    bool _inited;
 };
 
 template <class T>
@@ -100,11 +176,81 @@ public:
     }
 };
 
+class FixedCharBloomFilterFunc : public BloomFilterFunc<StringValue> {
+public:
+    FixedCharBloomFilterFunc(MemTracker* tracker) : BloomFilterFunc<StringValue>(tracker) {}
+
+    ~FixedCharBloomFilterFunc() = default;
+
+    virtual bool find(const void* data) {
+        DCHECK(_bloom_filter != nullptr);
+        const auto* value = reinterpret_cast<const StringValue*>(data);
+        auto end_ptr = value->ptr + value->len - 1;
+        while (end_ptr > value->ptr && *end_ptr == '\0') --end_ptr;
+        return _bloom_filter->test_bytes(value->ptr, end_ptr - value->ptr + 1);
+    }
+};
+
+class DateTimeBloomFilterFunc : public BloomFilterFunc<DateTimeValue> {
+public:
+    DateTimeBloomFilterFunc(MemTracker* tracker) : BloomFilterFunc<DateTimeValue>(tracker) {}
+
+    virtual bool find_olap_engine(const void* data) {
+        DateTimeValue value;
+        value.from_olap_datetime(*reinterpret_cast<const uint64_t*>(data));
+        return _bloom_filter->test_bytes((char*)&value, sizeof(DateTimeValue));
+    }
+};
+
+class DateBloomFilterFunc : public BloomFilterFunc<DateTimeValue> {
+public:
+    DateBloomFilterFunc(MemTracker* tracker) : BloomFilterFunc<DateTimeValue>(tracker) {}
+
+    virtual bool find_olap_engine(const void* data) {
+        uint64_t value = 0;
+        value = *(unsigned char*)((char*)data + 2);
+        value <<= 8;
+        value |= *(unsigned char*)((char*)data + 1);
+        value <<= 8;
+        value |= *(unsigned char*)((char*)data);
+        DateTimeValue date_value;
+        date_value.from_olap_date(value);
+        date_value.to_datetime();
+        return _bloom_filter->test_bytes((char*)&date_value, sizeof(DateTimeValue));
+    }
+};
+
+class DecimalFilterFunc : public BloomFilterFunc<DecimalValue> {
+public:
+    DecimalFilterFunc(MemTracker* tracker) : BloomFilterFunc<DecimalValue>(tracker) {}
+
+    virtual bool find_olap_engine(const void* data) {
+        int64_t int_value = *(int64_t*)(data);
+        int32_t frac_value = *(int32_t*)((char*)data + sizeof(int64_t));
+        DecimalValue value(int_value, frac_value);
+        return _bloom_filter->test_bytes((char*)&value, sizeof(DecimalValue));
+    }
+};
+
+class DecimalV2FilterFunc : public BloomFilterFunc<DecimalV2Value> {
+public:
+    DecimalV2FilterFunc(MemTracker* tracker) : BloomFilterFunc<DecimalV2Value>(tracker) {}
+
+    virtual bool find_olap_engine(const void* data) {
+        DecimalV2Value value;
+        int64_t int_value = *(int64_t*)(data);
+        int32_t frac_value = *(int32_t*)((char*)data + sizeof(int64_t));
+        value.from_olap_decimal(int_value, frac_value);
+        return _bloom_filter->test_bytes((char*)&value, sizeof(DecimalV2Value));
+    }
+};
+
 // BloomFilterPredicate only used in runtime filter
 class BloomFilterPredicate : public Predicate {
 public:
     virtual ~BloomFilterPredicate();
     BloomFilterPredicate(const TExprNode& node);
+    BloomFilterPredicate(const BloomFilterPredicate& other);
     virtual Expr* clone(ObjectPool* pool) const override {
         return pool->add(new BloomFilterPredicate(*this));
     }
@@ -113,6 +259,7 @@ public:
     std::shared_ptr<BloomFilterFuncBase> get_bloom_filter_func() { return _filter; }
 
     virtual BooleanVal get_boolean_val(ExprContext* context, TupleRow* row) override;
+
     virtual Status open(RuntimeState* state, ExprContext* context,
                         FunctionContext::FunctionStateScope scope) override;
 
@@ -125,15 +272,15 @@ private:
     // if we set always = true, we will skip bloom filter
     bool _always_true;
     /// TODO: statistic filter rate in the profile
-    int64_t _filtered_rows;
-    int64_t _scan_rows;
-    
+    std::atomic<int64_t> _filtered_rows;
+    std::atomic<int64_t> _scan_rows;
+
     std::shared_ptr<BloomFilterFuncBase> _filter;
     bool _has_calculate_filter = false;
     // loop size must be power of 2
     constexpr static int64_t _loop_size = 8192;
     // if filter rate less than this, bloom filter will set always true
-    constexpr static float _expect_filter_rate = 0.2f;
+    constexpr static double _expect_filter_rate = 0.2;
 };
 } // namespace doris
 #endif

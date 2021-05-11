@@ -62,9 +62,10 @@ protected:
     void debug_string(int indentation_level, std::stringstream* out) const;
 
 private:
+    friend class IRuntimeFilter;
+
     boost::scoped_ptr<HashTable> _hash_tbl;
     HashTable::Iterator _hash_tbl_iterator;
-    bool _is_push_down;
 
     // for right outer joins, keep track of what's been joined
     typedef std::unordered_set<TupleRow*> BuildTupleRowSet;
@@ -105,6 +106,7 @@ private:
     // is responsible for.
     boost::scoped_ptr<RowBatch> _probe_batch;
     int _probe_batch_pos; // current scan pos in _probe_batch
+    int _probe_counter;
     bool _probe_eos; // if true, probe child has no more rows to process
     TupleRow* _current_probe_row;
 
@@ -137,9 +139,6 @@ private:
     RuntimeProfile::Counter* _probe_rows_counter;    // num probe rows
     RuntimeProfile::Counter* _build_buckets_counter; // num buckets in hash table
     RuntimeProfile::Counter* _hash_tbl_load_factor_counter;
-
-    // Check whether enable runtime filter in hash join node
-    void init_runtime_filter_status();
 
     // Supervises ConstructHashTable in a separate thread, and
     // returns its status in the promise parameter.
@@ -177,6 +176,15 @@ private:
     // This is only used for debugging and outputting the left child rows before
     // doing the join.
     std::string get_probe_row_output_string(TupleRow* probe_row);
+
+    std::vector<TRuntimeFilterDesc> _runtime_filter_descs;
+
+    // _release_context_counter should be power of 2
+    // GCC will optimize the modulo operation to &(release_context_counter - 1)
+    // build_expr_context and probe_expr_context will free local alloc after this probe calculations
+    static constexpr int _release_context_counter = 1 << 5;
+    static_assert((_release_context_counter & (_release_context_counter - 1)) == 0,
+                  "should be power of 2");
 };
 
 } // namespace doris

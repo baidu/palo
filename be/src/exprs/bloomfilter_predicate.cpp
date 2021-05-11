@@ -26,6 +26,7 @@
 #include "runtime/string_value.hpp"
 
 namespace doris {
+
 BloomFilterFuncBase* BloomFilterFuncBase::create_bloom_filter(MemTracker* tracker,
                                                               PrimitiveType type) {
     switch (type) {
@@ -51,19 +52,22 @@ BloomFilterFuncBase* BloomFilterFuncBase::create_bloom_filter(MemTracker* tracke
         return new (std::nothrow) BloomFilterFunc<double>(tracker);
 
     case TYPE_DATE:
+        return new (std::nothrow) DateBloomFilterFunc(tracker);
+
     case TYPE_DATETIME:
-        return new (std::nothrow) BloomFilterFunc<DateTimeValue>(tracker);
+        return new (std::nothrow) DateTimeBloomFilterFunc(tracker);
 
     case TYPE_DECIMAL:
-        return new (std::nothrow) BloomFilterFunc<DecimalValue>(tracker);
+        return new (std::nothrow) DecimalFilterFunc(tracker);
 
     case TYPE_DECIMALV2:
-        return new (std::nothrow) BloomFilterFunc<DecimalV2Value>(tracker);
+        return new (std::nothrow) DecimalV2FilterFunc(tracker);
 
     case TYPE_LARGEINT:
         return new (std::nothrow) BloomFilterFunc<__int128>(tracker);
 
     case TYPE_CHAR:
+        return new (std::nothrow) FixedCharBloomFilterFunc(tracker);
     case TYPE_VARCHAR:
         return new (std::nothrow) BloomFilterFunc<StringValue>(tracker);
 
@@ -74,6 +78,12 @@ BloomFilterFuncBase* BloomFilterFuncBase::create_bloom_filter(MemTracker* tracke
     return nullptr;
 }
 
+Status BloomFilterFuncBase::get_data(char** data, int* len) {
+    *data = _bloom_filter->data();
+    *len = _bloom_filter->size();
+    return Status::OK();
+}
+
 BloomFilterPredicate::BloomFilterPredicate(const TExprNode& node)
         : Predicate(node),
           _is_prepare(false),
@@ -81,9 +91,20 @@ BloomFilterPredicate::BloomFilterPredicate(const TExprNode& node)
           _filtered_rows(0),
           _scan_rows(0) {}
 
-BloomFilterPredicate::~BloomFilterPredicate() {}
+BloomFilterPredicate::~BloomFilterPredicate() {
+    LOG(INFO) << "bloom filter rows:" << _filtered_rows << ",scan_rows:" << _scan_rows
+              << ",rate:" << (double)_filtered_rows / _scan_rows;
+}
+
+BloomFilterPredicate::BloomFilterPredicate(const BloomFilterPredicate& other)
+        : Predicate(other),
+          _is_prepare(other._is_prepare),
+          _always_true(other._always_true),
+          _filtered_rows(),
+          _scan_rows() {}
 
 Status BloomFilterPredicate::prepare(RuntimeState* state, BloomFilterFuncBase* filter) {
+    // DCHECK(filter != nullptr);
     if (_is_prepare) {
         return Status::OK();
     }
@@ -116,7 +137,7 @@ BooleanVal BloomFilterPredicate::get_boolean_val(ExprContext* ctx, TupleRow* row
     _filtered_rows++;
 
     if (!_has_calculate_filter && _scan_rows % _loop_size == 0) {
-        float rate = (float)_filtered_rows / _scan_rows;
+        double rate = (double)_filtered_rows / _scan_rows;
         if (rate < _expect_filter_rate) {
             _always_true = true;
         }
