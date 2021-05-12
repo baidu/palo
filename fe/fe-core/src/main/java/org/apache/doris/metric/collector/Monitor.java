@@ -157,22 +157,22 @@ public class Monitor {
                 % readInterval);
     }
 
-    private static Object qps(List<String> nodes, List<Long> timestampsOfReadingMetric) {
+    private static ChartData<Double> qps(List<String> nodes, List<Long> timestampsOfReadingMetric) {
         emptyAddAllFe(nodes);
         return readDataDouble(BDBJEMetricUtils.QPS, nodes, timestampsOfReadingMetric);
     }
 
-    private static Object queryLatency(List<String> nodes, List<Long> timestampsOfReadingMetric, String quanlite) {
+    private static ChartData<Double> queryLatency(List<String> nodes, List<Long> timestampsOfReadingMetric, String quanlite) {
         emptyAddAllFe(nodes);
         return readDataDouble(BDBJEMetricUtils.QUANLITE.concat(quanlite), nodes, timestampsOfReadingMetric);
     }
 
-    private static Object queryErrRate(List<String> nodes, List<Long> timestampsOfReadingMetric) {
+    private static ChartData<Double> queryErrRate(List<String> nodes, List<Long> timestampsOfReadingMetric) {
         emptyAddAllFe(nodes);
         return readDataDouble(BDBJEMetricUtils.QUERY_ERR_RATE, nodes, timestampsOfReadingMetric);
     }
 
-    private static Object connectionTotal(List<String> nodes, List<Long> timestampsOfReadingMetric) {
+    private static ChartData<Long> connectionTotal(List<String> nodes, List<Long> timestampsOfReadingMetric) {
         emptyAddAllFe(nodes);
         return readDataLong(BDBJEMetricUtils.CONNECTION_TOTAL, nodes, timestampsOfReadingMetric);
     }
@@ -204,7 +204,7 @@ public class Monitor {
      * }
      *
      */
-    private static Object transactionStatus(List<Long> timestampsOfReadingMetric, int readInterval) {
+    private static ChartDataTxn<Double> transactionStatus(List<Long> timestampsOfReadingMetric, int readInterval) {
         Map<String, Map<String, List<Double>>> nodeToData = Maps.newHashMap();
         // Only master of fe has this monitoring data.
         InetSocketAddress master = Catalog.getCurrentCatalog().getHaProtocol().getLeader();
@@ -249,7 +249,7 @@ public class Monitor {
     // cpuIdle is the total cpu idle time since boot, and cpuTotal is the total cpu time since boot.
     // Average cpuIdlePercent in readInterval = (cpuIdle2 - cpuIdle1) / (cpuTotal2 - cpuIdle1) * 100%
     // The average cpuIdlePercent is used to represent the cpuIdlePercent.
-    private static Object beCpuIdle(long lastTimestamp, List<String> nodes, List<Long> timestampsOfReadingMetric) {
+    private static ChartData<Long> beCpuIdle(long lastTimestamp, List<String> nodes, List<Long> timestampsOfReadingMetric) {
         Map<String, List<Long>> nodeToData = Maps.newHashMap();
         emptyAddAllBe(nodes);
         BDBJEMetricHandler bdbjeMetricHandler = Catalog.getCurrentCatalog().getBDBJEMetricHandler();
@@ -289,22 +289,22 @@ public class Monitor {
         return (secondCpuIdle - firstCpuIdle) * 100 / (secondCpuTotal - firstCpuTotal);
     }
 
-    private static Object beMem(List<String> nodes, List<Long> timestampsOfReadingMetric) {
+    private static ChartData<Long> beMem(List<String> nodes, List<Long> timestampsOfReadingMetric) {
         emptyAddAllBe(nodes);
         return readDataLong(BDBJEMetricUtils.METRIC_MEMORY_ALLOCATED_BYTES, nodes, timestampsOfReadingMetric);
     }
 
-    private static Object diskIoUtil(List<String> nodes, List<Long> timestampsOfReadingMetric) {
+    private static ChartData<Long> diskIoUtil(List<String> nodes, List<Long> timestampsOfReadingMetric) {
         emptyAddAllBe(nodes);
         return readDataLong(BDBJEMetricUtils.METRIC_MAX_DISK_IO_UTIL_PERCENT, nodes, timestampsOfReadingMetric);
     }
 
-    private static Object beBaseCompactionScore(List<String> nodes, List<Long> timestampsOfReadingMetric) {
+    private static ChartData<Long> beBaseCompactionScore(List<String> nodes, List<Long> timestampsOfReadingMetric) {
         emptyAddAllBe(nodes);
         return readDataLong(BDBJEMetricUtils.BASE_COMPACTION_SCORE, nodes, timestampsOfReadingMetric);
     }
 
-    private static Object beCumuCompactionScore(List<String> nodes, List<Long> timestampsOfReadingMetric) {
+    private static ChartData<Long> beCumuCompactionScore(List<String> nodes, List<Long> timestampsOfReadingMetric) {
         emptyAddAllBe(nodes);
         return readDataLong(BDBJEMetricUtils.CUMU_COMPACTION_SCORE, nodes, timestampsOfReadingMetric);
     }
@@ -321,7 +321,8 @@ public class Monitor {
         }
     }
 
-    private static Object readDataLong(String metricName, List<String> nodes, List<Long> timestampsOfReadingMetric) {
+    private static ChartData<Long> readDataLong(String metricName, List<String> nodes,
+                                                List<Long> timestampsOfReadingMetric) {
         Map<String, List<Long>> nodeToData = Maps.newHashMap();
         BDBJEMetricHandler bdbjeMetricHandler = Catalog.getCurrentCatalog().getBDBJEMetricHandler();
         for (String node : nodes) {
@@ -342,7 +343,8 @@ public class Monitor {
         return new ChartData<>(timestampsOfReadingMetric, nodeToData);
     }
 
-    private static Object readDataDouble(String metricName, List<String> nodes, List<Long> timestampsOfReadingMetric) {
+    private static ChartData<Double> readDataDouble(String metricName,
+                                                    List<String> nodes, List<Long> timestampsOfReadingMetric) {
         Map<String, List<Double>> nodeToData = Maps.newHashMap();
         BDBJEMetricHandler bdbjeMetricHandler = Catalog.getCurrentCatalog().getBDBJEMetricHandler();
         for (String node : nodes) {
