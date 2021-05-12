@@ -317,6 +317,10 @@ public:
         return value;
     }
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Warray-bounds"
+#pragma GCC diagnostic ignored "-Wstringop-overflow="
+
     static DecimalValue from_decimal_val(const doris_udf::DecimalVal& val) {
         DecimalValue result;
         result._int_length = val.int_len;
@@ -327,6 +331,7 @@ public:
         memcpy(result._buffer, val.buffer, sizeof(int32_t) * DECIMAL_BUFF_LENGTH);
         return result;
     }
+#pragma GCC diagnostic pop
 
     void to_decimal_val(doris_udf::DecimalVal* value) const {
         value->int_len = _int_length;
