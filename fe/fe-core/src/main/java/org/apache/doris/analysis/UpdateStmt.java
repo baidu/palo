@@ -157,8 +157,11 @@ public class UpdateStmt extends DdlStmt {
             // columns must belong to target table
             setExpr.analyze(analyzer);
             Preconditions.checkState(setExpr instanceof BinaryPredicate);
-            // only value columns coulod be updated
+            // only value columns could be updated
             Expr lhs = setExpr.getChild(0);
+            if (!(lhs instanceof SlotRef)) {
+                throw new AnalysisException("Types on the left and right sides of the expr do not match: " + setExpr.toSql());
+            }
             Preconditions.checkState(lhs instanceof SlotRef);
             if (((SlotRef) lhs).getColumn().getAggregationType() != AggregateType.REPLACE) {
                 throw new AnalysisException("Only value columns of unique table could be updated.");
@@ -167,10 +170,13 @@ public class UpdateStmt extends DdlStmt {
     }
 
     private void analyzeWhereExpr(Analyzer analyzer) throws AnalysisException {
+        if (whereExpr == null) {
+            throw new AnalysisException("Where clause is required");
+        }
         whereExpr = analyzer.getExprRewriter().rewrite(whereExpr, analyzer);
         whereExpr.analyze(analyzer);
         if (!whereExpr.getType().equals(Type.BOOLEAN)) {
-            throw new AnalysisException("where statement is not a valid statement return bool");
+            throw new AnalysisException("Where clause is not a valid statement return bool");
         }
         analyzer.registerConjunct(whereExpr, srcTupleDesc.getId());
     }
@@ -184,7 +190,7 @@ public class UpdateStmt extends DdlStmt {
             sb.append(setExpr.toSql()).append(", ");
         }
         sb.append("\n");
-        if (whereExpr!=null) {
+        if (whereExpr != null) {
             sb.append("  ").append("WHERE ").append(whereExpr.toSql());
         }
         return sb.toString();

@@ -94,6 +94,10 @@ public class UpdateStmtExecutor {
         // 3. execute plan
         try {
             executePlan();
+        } catch (DdlException e) {
+            LOG.warn("failed to execute update stmt, query id:{}", DebugUtil.printId(queryId), e);
+            Catalog.getCurrentGlobalTransactionMgr().abortTransaction(dbId, txnId, e.getMessage());
+            throw e;
         } catch (Throwable e) {
             LOG.warn("failed to execute update stmt, query id:{}", DebugUtil.printId(queryId), e);
             Catalog.getCurrentGlobalTransactionMgr().abortTransaction(dbId, txnId, e.getMessage());
