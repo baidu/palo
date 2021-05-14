@@ -1085,12 +1085,15 @@ Status RuntimeFilterSlots::init(RuntimeState* state, ObjectPool* pool, MemTracke
         _runtime_filters[runtime_filter->expr_order()].push_back(runtime_filter);
     }
 
+    return Status::OK();
+}
+
+void RuntimeFilterSlots::ready_for_publish() {
     for (auto& pair : _runtime_filters) {
         for (auto filter : pair.second) {
             filter->ready_for_publish();
         }
     }
-    return Status::OK();
 }
 
 void RuntimeFilterSlots::publish(HashJoinNode* hash_join_node) {

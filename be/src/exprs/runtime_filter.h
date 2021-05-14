@@ -292,6 +292,8 @@ public:
         }
     }
 
+    // should call this method after insert
+    void ready_for_publish();
     // publish runtime filter
     void publish(HashJoinNode* hash_join_node);
 
