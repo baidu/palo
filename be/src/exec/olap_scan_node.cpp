@@ -230,6 +230,8 @@ Status OlapScanNode::open(RuntimeState* state) {
             _runtime_filter_ctxs[i].runtimefilter = runtime_filter;
 
             for (auto ctx : expr_context) {
+                ctx->prepare(state, row_desc(), _expr_mem_tracker);
+                ctx->open(state);
                 int index = _conjunct_ctxs.size();
                 _conjunct_ctxs.push_back(ctx);
                 // it's safe to store address from a fix-resized vector

@@ -186,8 +186,8 @@ Status RuntimeFilterMergeControllerEntity::merge(const PMergeFilterRequest* requ
         cntVal->arrive_id.insert(UniqueId(request->fragment_id()).to_string());
         merged_size = cntVal->arrive_id.size();
         // TODO: avoid log when we had acquired a lock
-        LOG(INFO) << "merge size:" << merged_size << ":" << cntVal->producer_size;
-        DCHECK_LT(merged_size, cntVal->producer_size);
+        VLOG_ROW << "merge size:" << merged_size << ":" << cntVal->producer_size;
+        DCHECK_LE(merged_size, cntVal->producer_size);
         if (merged_size < cntVal->producer_size) {
             return Status::OK();
         }
