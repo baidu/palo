@@ -107,8 +107,8 @@ void PInternalServiceImpl<T>::tablet_writer_add_batch(google::protobuf::RpcContr
         int64_t execution_time_ns = 0;
         {
             SCOPED_RAW_TIMER(&execution_time_ns);
-            auto st = _exec_env->load_channel_mgr()->add_batch(
-                    *request, response->mutable_tablet_vec());
+            auto st = _exec_env->load_channel_mgr()->add_batch(*request,
+                                                               response->mutable_tablet_vec());
             if (!st.ok()) {
                 LOG(WARNING) << "tablet writer add batch failed, message=" << st.get_error_msg()
                              << ", id=" << request->id() << ", index_id=" << request->index_id()
@@ -242,13 +242,11 @@ void PInternalServiceImpl<T>::clear_cache(google::protobuf::RpcController* contr
     _exec_env->result_cache()->clear(request, response);
 }
 
-template<typename T>
-void PInternalServiceImpl<T>::fold_constant_expr(
-    google::protobuf::RpcController* cntl_base,
-    const PConstantExprRequest* request,
-    PConstantExprResult* response,
-    google::protobuf::Closure* done) {
-
+template <typename T>
+void PInternalServiceImpl<T>::fold_constant_expr(google::protobuf::RpcController* cntl_base,
+                                                 const PConstantExprRequest* request,
+                                                 PConstantExprResult* response,
+                                                 google::protobuf::Closure* done) {
     brpc::ClosureGuard closure_guard(done);
     brpc::Controller* cntl = static_cast<brpc::Controller*>(cntl_base);
 
@@ -265,10 +263,40 @@ void PInternalServiceImpl<T>::fold_constant_expr(
     st.to_protobuf(response->mutable_status());
 }
 
-template<typename T>
+template <typename T>
+void PInternalServiceImpl<T>::merge_filter(::google::protobuf::RpcController* controller,
+                                           const ::doris::PMergeFilterRequest* request,
+                                           ::doris::PMergeFilterResponse* response,
+                                           ::google::protobuf::Closure* done) {
+    brpc::ClosureGuard closure_guard(done);
+    auto buf = static_cast<brpc::Controller*>(controller)->request_attachment();
+    Status st = _exec_env->fragment_mgr()->merge_filter(request, buf.to_string().data());
+    if (!st.ok()) {
+        LOG(WARNING) << "merge meet error" << st.to_string();
+    }
+    st.to_protobuf(response->mutable_status());
+}
+
+template <typename T>
+void PInternalServiceImpl<T>::apply_filter(::google::protobuf::RpcController* controller,
+                                           const ::doris::PPublishFilterRequest* request,
+                                           ::doris::PPublishFilterResponse* response,
+                                           ::google::protobuf::Closure* done) {
+    brpc::ClosureGuard closure_guard(done);
+    auto attachment = static_cast<brpc::Controller*>(controller)->request_attachment();
+    UniqueId unique_id(request->query_id());
+    // TODO: avoid copy attachment copy
+    LOG(INFO) << "rpc apply_filter recv";
+    Status st = _exec_env->fragment_mgr()->apply_filter(request, attachment.to_string().data());
+    if (!st.ok()) {
+        LOG(WARNING) << "apply filter meet error" << st.to_string();
+    }
+    st.to_protobuf(response->mutable_status());
+}
+
+template <typename T>
 Status PInternalServiceImpl<T>::_fold_constant_expr(const std::string& ser_request,
                                                     PConstantExprResult* response) {
-
     TFoldConstantParams t_request;
     {
         const uint8_t* buf = (const uint8_t*)ser_request.data();
@@ -279,10 +307,9 @@ Status PInternalServiceImpl<T>::_fold_constant_expr(const std::string& ser_reque
     return mgr.fold_constant_expr(t_request, response);
 }
 
-template<typename T>
+template <typename T>
 void PInternalServiceImpl<T>::send_data(google::protobuf::RpcController* controller,
-                                        const PSendDataRequest* request,
-                                        PSendDataResult* response,
+                                        const PSendDataRequest* request, PSendDataResult* response,
                                         google::protobuf::Closure* done) {
     brpc::ClosureGuard closure_guard(done);
 
@@ -303,10 +330,9 @@ void PInternalServiceImpl<T>::send_data(google::protobuf::RpcController* control
     }
 }
 
-template<typename T>
+template <typename T>
 void PInternalServiceImpl<T>::commit(google::protobuf::RpcController* controller,
-                                     const PCommitRequest* request,
-                                     PCommitResult* response,
+                                     const PCommitRequest* request, PCommitResult* response,
                                      google::protobuf::Closure* done) {
     brpc::ClosureGuard closure_guard(done);
 
@@ -323,10 +349,9 @@ void PInternalServiceImpl<T>::commit(google::protobuf::RpcController* controller
     }
 }
 
-template<typename T>
+template <typename T>
 void PInternalServiceImpl<T>::rollback(google::protobuf::RpcController* controller,
-                                       const PRollbackRequest* request,
-                                       PRollbackResult* response,
+                                       const PRollbackRequest* request, PRollbackResult* response,
                                        google::protobuf::Closure* done) {
     brpc::ClosureGuard closure_guard(done);
 

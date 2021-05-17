@@ -23,7 +23,8 @@
 
 namespace doris {
 
-BloomFilterColumnPredicate::BloomFilterColumnPredicate(uint32_t column_id, const std::shared_ptr<BloomFilterFuncBase>& filter)
+BloomFilterColumnPredicate::BloomFilterColumnPredicate(
+        uint32_t column_id, const std::shared_ptr<BloomFilterFuncBase>& filter)
         : ColumnPredicate(column_id), _filter(filter) {}
 
 // blomm filter column predicate do not support in segment v1
@@ -43,25 +44,23 @@ void BloomFilterColumnPredicate::evaluate(ColumnBlock* block, uint16_t* sel, uin
         for (uint16_t i = 0; i < *size; ++i) {
             uint16_t idx = sel[i];
             sel[new_size] = idx;
-            const auto *cell_value =
-                    reinterpret_cast<const void *>(block->cell(idx).cell_ptr());
-            new_size += (!block->cell(idx).is_null() && _filter->find(cell_value));
+            const auto* cell_value = reinterpret_cast<const void*>(block->cell(idx).cell_ptr());
+            new_size += (!block->cell(idx).is_null() && _filter->find_olap_engine(cell_value));
         }
     } else {
         for (uint16_t i = 0; i < *size; ++i) {
             uint16_t idx = sel[i];
             sel[new_size] = idx;
-            const auto *cell_value =
-                    reinterpret_cast<const void *>(block->cell(idx).cell_ptr());
-            new_size += _filter->find(cell_value);
+            const auto* cell_value = reinterpret_cast<const void*>(block->cell(idx).cell_ptr());
+            new_size += _filter->find_olap_engine(cell_value);
         }
     }
     *size = new_size;
 }
 
 Status BloomFilterColumnPredicate::evaluate(const Schema& schema,
-                               const std::vector<BitmapIndexIterator*>& iterators,
-                               uint32_t num_rows, Roaring* result) const {
+                                            const std::vector<BitmapIndexIterator*>& iterators,
+                                            uint32_t num_rows, Roaring* result) const {
     return Status::OK();
 }
 

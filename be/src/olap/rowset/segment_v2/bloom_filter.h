@@ -81,7 +81,7 @@ public:
 
     // for read
     // use deep copy to acquire the data
-    Status init(char* buf, uint32_t size, HashStrategyPB strategy) {
+    Status init(const char* buf, uint32_t size, HashStrategyPB strategy) {
         DCHECK(size > 1);
         if (strategy == HASH_MURMUR3_X64_64) {
             _hash_func = murmur_hash3_x64_64;
@@ -95,6 +95,7 @@ public:
         memcpy(_data, buf, size);
         _size = size;
         _num_bytes = _size - 1;
+        DCHECK((_num_bytes & (_num_bytes - 1)) == 0);
         _has_null = (bool*)(_data + _num_bytes);
         return Status::OK();
     }
@@ -136,6 +137,14 @@ public:
 
     virtual void add_hash(uint64_t hash) = 0;
     virtual bool test_hash(uint64_t hash) const = 0;
+
+    Status merge(const BloomFilter* other) {
+        DCHECK(other->size() == _size);
+        for (uint32_t i = 0; i < other->size(); i++) {
+            _data[i] |= other->_data[i];
+        }
+        return Status::OK();
+    }
 
     // Compute the optimal bit number according to the following rule:
     //     m = -n * ln(fpp) / (ln(2) ^ 2)

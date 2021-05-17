@@ -57,9 +57,10 @@ OlapScanner::OlapScanner(RuntimeState* runtime_state, OlapScanNode* parent, bool
 
 OlapScanner::~OlapScanner() {}
 
-Status OlapScanner::prepare(const TPaloScanRange &scan_range, const std::vector<OlapScanRange *> &key_ranges,
-                            const std::vector<TCondition> &filters,
-                            const std::vector<std::pair<string, std::shared_ptr<BloomFilterFuncBase>>> &bloom_filters) {
+Status OlapScanner::prepare(
+        const TPaloScanRange& scan_range, const std::vector<OlapScanRange*>& key_ranges,
+        const std::vector<TCondition>& filters,
+        const std::vector<std::pair<string, std::shared_ptr<BloomFilterFuncBase>>>& bloom_filters) {
     // Get olap table
     TTabletId tablet_id = scan_range.tablet_id;
     SchemaHash schema_hash = strtoul(scan_range.schema_hash.c_str(), nullptr, 10);
@@ -117,6 +118,8 @@ Status OlapScanner::open() {
         _use_pushdown_conjuncts = true;
     }
 
+    _runtime_filter_marks.resize(_parent->runtime_filter_descs().size(), false);
+
     auto res = _reader->init(_params);
     if (res != OLAP_SUCCESS) {
         OLAP_LOG_WARNING("fail to init reader.[res=%d]", res);
@@ -129,8 +132,9 @@ Status OlapScanner::open() {
 }
 
 // it will be called under tablet read lock because capture rs readers need
-Status OlapScanner::_init_params(const std::vector<OlapScanRange*>& key_ranges,
-                                 const std::vector<TCondition>& filters, const std::vector<std::pair<string, std::shared_ptr<BloomFilterFuncBase>>> &bloom_filters) {
+Status OlapScanner::_init_params(
+        const std::vector<OlapScanRange*>& key_ranges, const std::vector<TCondition>& filters,
+        const std::vector<std::pair<string, std::shared_ptr<BloomFilterFuncBase>>>& bloom_filters) {
     RETURN_IF_ERROR(_init_return_columns());
 
     _params.tablet = _tablet;
@@ -143,7 +147,7 @@ Status OlapScanner::_init_params(const std::vector<OlapScanRange*>& key_ranges,
         _params.conditions.push_back(filter);
     }
     std::copy(bloom_filters.cbegin(), bloom_filters.cend(),
-            std::inserter(_params.bloom_filters, _params.bloom_filters.begin()));
+              std::inserter(_params.bloom_filters, _params.bloom_filters.begin()));
 
     // Range
     for (auto key_range : key_ranges) {
@@ -360,9 +364,10 @@ Status OlapScanner::get_batch(RuntimeState* state, RowBatch* batch, bool* eof) {
                             config::doris_max_pushdown_conjuncts_return_rate) {
                             _use_pushdown_conjuncts = false;
                             VLOG_CRITICAL << "Stop Using PushDown Conjuncts. "
-                                    << "PushDownReturnRate: " << pushdown_return_rate << "%"
-                                    << " MaxPushDownReturnRate: "
-                                    << config::doris_max_pushdown_conjuncts_return_rate << "%";
+                                          << "PushDownReturnRate: " << pushdown_return_rate << "%"
+                                          << " MaxPushDownReturnRate: "
+                                          << config::doris_max_pushdown_conjuncts_return_rate
+                                          << "%";
                         }
                     }
                 }

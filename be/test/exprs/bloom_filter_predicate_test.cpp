@@ -68,6 +68,33 @@ TEST_F(BloomFilterPredicateTest, bloom_filter_func_stringval_test) {
     std::string not_exist_str = "0x3355ff";
     StringValue not_exist_val(not_exist_str);
     ASSERT_FALSE(func->find((const void*)&not_exist_val));
+
+    // test fixed char
+    func.reset(BloomFilterFuncBase::create_bloom_filter(tracker.get(), PrimitiveType::TYPE_CHAR));
+    ASSERT_TRUE(func->init().ok());
+
+    auto varchar_true_str = obj_pool.add(new std::string("true"));
+    StringValue varchar_true(*varchar_true_str);
+    func->insert((const void*)&varchar_true);
+
+    auto varchar_false_str = obj_pool.add(new std::string("false"));
+    StringValue varchar_false(*varchar_false_str);
+    func->insert((const void*)&varchar_false);
+
+    StringValue fixed_char_true;
+    char true_buf[100] = "true";
+    memset(true_buf + strlen(true_buf), 0, 100 - strlen(true_buf));
+    fixed_char_true.ptr = true_buf;
+    fixed_char_true.len = 10;
+
+    StringValue fixed_char_false;
+    char false_buf[100] = "false";
+    memset(false_buf + strlen(false_buf), 0, 100 - strlen(false_buf));
+    fixed_char_false.ptr = false_buf;
+    fixed_char_false.len = 10;
+
+    ASSERT_TRUE(func->find_olap_engine((const void*)&fixed_char_true));
+    ASSERT_TRUE(func->find_olap_engine((const void*)&fixed_char_false));
 }
 
 } // namespace doris

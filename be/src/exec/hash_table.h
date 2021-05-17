@@ -118,6 +118,8 @@ public:
         }
     }
 
+    bool IR_ALWAYS_INLINE emplace_key(TupleRow* row, TupleRow** key_addr);
+
     // Returns the start iterator for all rows that match 'probe_row'.  'probe_row' is
     // evaluated with _probe_expr_ctxs.  The iterator can be iterated until HashTable::end()
     // to find all the matching rows.
@@ -169,6 +171,8 @@ public:
     // skipped.  If build_desc is non-null, the build rows will be output.  Otherwise
     // just the build row addresses.
     std::string debug_string(bool skip_empty, const RowDescriptor* build_desc);
+
+    inline std::pair<int64_t, int64_t> minmax_node();
 
     // stl-like iterator interface.
     class Iterator {
@@ -254,8 +258,9 @@ private:
     };
 
     struct Bucket {
-        Bucket() { _node = nullptr; }
+        Bucket() : _node(nullptr), _size(0) {}
         Node* _node;
+        uint64_t _size;
     };
 
     // Returns the next non-empty bucket and updates idx to be the index of that bucket.

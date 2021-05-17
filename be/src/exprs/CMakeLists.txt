@@ -47,6 +47,7 @@ add_library(Exprs
   new_in_predicate.cpp
   bloomfilter_predicate.cpp
   runtime_filter.cpp
+  runtime_filter_rpc.cpp
   is_null_predicate.cpp
   like_predicate.cpp
   math_functions.cpp

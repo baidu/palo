@@ -17,6 +17,7 @@
 
 package org.apache.doris.planner;
 
+import com.google.common.base.Joiner;
 import org.apache.doris.analysis.Analyzer;
 import org.apache.doris.analysis.Expr;
 import org.apache.doris.analysis.ExprId;
@@ -40,6 +41,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
@@ -119,6 +121,9 @@ abstract public class PlanNode extends TreeNode<PlanNode> {
     public String getPlanNodeName() {
         return planNodeName;
     }
+
+    // Runtime filters assigned to this node.
+    protected List<RuntimeFilter> runtimeFilters = new ArrayList<>();
 
     protected PlanNode(PlanNodeId id, ArrayList<TupleId> tupleIds, String planNodeName) {
         this.id = id;
@@ -423,6 +428,10 @@ abstract public class PlanNode extends TreeNode<PlanNode> {
         }
         for (Expr e : conjuncts) {
             msg.addToConjuncts(e.treeToThrift());
+        }
+        // Serialize any runtime filters
+        for (RuntimeFilter filter : runtimeFilters) {
+            msg.addToRuntimeFilters(filter.toThrift());
         }
         msg.compact_data = compactData;
         toThrift(msg);
@@ -756,6 +765,33 @@ abstract public class PlanNode extends TreeNode<PlanNode> {
             }
         }
         return null;
+    }
+
+    protected void addRuntimeFilter(RuntimeFilter filter) { runtimeFilters.add(filter); }
+
+    protected Collection<RuntimeFilter> getRuntimeFilters() { return runtimeFilters; }
+
+    public void clearRuntimeFilters() { runtimeFilters.clear(); }
+
+    protected String getRuntimeFilterExplainString(boolean isBuildNode) {
+        if (runtimeFilters.isEmpty()) return "";
+        List<String> filtersStr = new ArrayList<>();
+        for (RuntimeFilter filter: runtimeFilters) {
+            StringBuilder filterStr = new StringBuilder();
+            filterStr.append(filter.getFilterId());
+            filterStr.append("[");
+            filterStr.append(filter.getType().toString().toLowerCase());
+            filterStr.append("]");
+            if (isBuildNode) {
+                filterStr.append(" <- ");
+                filterStr.append(filter.getSrcExpr().toSql());
+            } else {
+                filterStr.append(" -> ");
+                filterStr.append(filter.getTargetExpr(getId()).toSql());
+            }
+            filtersStr.add(filterStr.toString());
+        }
+        return Joiner.on(", ").join(filtersStr) + "\n";
     }
 }
 
