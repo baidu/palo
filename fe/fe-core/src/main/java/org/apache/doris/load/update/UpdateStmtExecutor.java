@@ -167,7 +167,12 @@ public class UpdateStmtExecutor {
             LOG.info("abort transaction for update stmt, query id:{}, reason: {}", DebugUtil.printId(queryId),
                     TransactionCommitFailedException.NO_DATA_TO_LOAD_MSG);
             globalTransactionMgr.abortTransaction(dbId, txnId, TransactionCommitFailedException.NO_DATA_TO_LOAD_MSG);
-            analyzer.getContext().getState().setOk();
+            StringBuilder sb = new StringBuilder();
+            sb.append("{'label':'").append(label);
+            sb.append(", 'txnId':'").append(txnId).append("'");
+            sb.append(", 'queryId':'").append(DebugUtil.printId(queryId)).append("'");
+            sb.append("}");
+            analyzer.getContext().getState().setOk(effectRows, 0, sb.toString());
             return;
         }
         TransactionStatus txnStatus;
