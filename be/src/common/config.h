@@ -289,14 +289,12 @@ CONF_Int32(max_meta_checkpoint_threads, "-1");
 CONF_mInt64(total_permits_for_compaction_score, "10000");
 
 // sleep interval in ms after generated compaction tasks
-CONF_mInt32(generate_compaction_tasks_min_interval_ms, "10")
+CONF_mInt32(generate_compaction_tasks_min_interval_ms, "10");
 
 // Compaction task number per disk.
 // Must be greater than 2, because Base compaction and Cumulative compaction have at least one thread each.
 CONF_mInt32(compaction_task_num_per_disk, "2");
-CONF_Validator(compaction_task_num_per_disk, [](const int config) -> bool {
-  return config >= 2;
-});
+CONF_Validator(compaction_task_num_per_disk, [](const int config) -> bool { return config >= 2; });
 
 // How many rounds of cumulative compaction for each round of base compaction when compaction tasks generation.
 CONF_mInt32(cumulative_compaction_rounds_for_each_base_compaction_round, "9");
@@ -587,9 +585,6 @@ CONF_String(thrift_server_type_of_fe, "THREAD_POOL");
 // disable zone map index when page row is too few
 CONF_mInt32(zone_map_row_num_threshold, "20");
 
-// buffered reader buffer size
-// This may affect the performance of reading data in parquet or orc format in remote storage.
-// default is 1MB
 CONF_mInt32(buffered_reader_buffer_size_bytes, "1048576");
 
 // aws sdk log level
@@ -605,6 +600,12 @@ CONF_Int32(aws_log_level, "3");
 // if set runtime_filter_use_async_rpc true, publish runtime filter will be a async method
 // else we will call sync method
 CONF_mBool(runtime_filter_use_async_rpc, "true");
+
+// buffered reader buffer size
+// This may affect the performance of reading data in parquet or orc format in remote storage.
+// default is 16 MB
+CONF_mInt32(remote_storage_read_buffer_mb, "16");
+
 } // namespace config
 
 } // namespace doris

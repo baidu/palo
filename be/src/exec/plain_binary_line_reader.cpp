@@ -35,9 +35,11 @@ void PlainBinaryLineReader::close() {
 
 Status PlainBinaryLineReader::read_line(const uint8_t** ptr, size_t* size, bool* eof) {
     std::unique_ptr<uint8_t[]> file_buf;
-    RETURN_IF_ERROR(_file_reader->read_one_message(&file_buf, size));
+    int64_t read_size = 0;
+    RETURN_IF_ERROR(_file_reader->read_one_message(&file_buf, &read_size));
     *ptr = file_buf.release();
-    if (*size == 0) {
+    *size = read_size;
+    if (read_size == 0) {
         *eof = true;
     }
     return Status::OK();

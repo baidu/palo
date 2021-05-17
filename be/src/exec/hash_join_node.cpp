@@ -196,14 +196,14 @@ Status HashJoinNode::construct_hash_table(RuntimeState* state) {
     RETURN_IF_ERROR(child(1)->open(state));
 
     SCOPED_TIMER(_build_timer);
-    DeferOp defer([&] {
+    Defer defer{[&] {
         COUNTER_SET(_build_rows_counter, _hash_tbl->size());
         COUNTER_SET(_build_buckets_counter, _hash_tbl->num_buckets());
         COUNTER_SET(_hash_tbl_load_factor_counter, _hash_tbl->load_factor());
         auto node = _hash_tbl->minmax_node();
         COUNTER_SET(_hash_table_list_min_size, node.first);
         COUNTER_SET(_hash_table_list_max_size, node.second);
-    });
+    }};
     while (true) {
         RETURN_IF_CANCELLED(state);
         bool eos = true;
@@ -562,7 +562,7 @@ Status HashJoinNode::left_join_get_next(RuntimeState* state, RowBatch* out_batch
     *eos = _eos;
 
     ScopedTimer<MonotonicStopWatch> probe_timer(_probe_timer);
-    DeferOp defer([&] { COUNTER_SET(_rows_returned_counter, _num_rows_returned); });
+    Defer defer{[&] { COUNTER_SET(_rows_returned_counter, _num_rows_returned); }};
 
     while (!_eos) {
         // Compute max rows that should be added to out_batch
