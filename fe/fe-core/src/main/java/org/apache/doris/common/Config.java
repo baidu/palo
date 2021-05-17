@@ -1079,7 +1079,7 @@ public class Config extends ConfigBase {
     // Some online time cost:
     // 1. disk report: 0-1 ms
     // 2. task report: 0-1 ms
-    // 3. tablet report 
+    // 3. tablet report
     //      10000 replicas: 200ms
     @ConfField(mutable = true, masterOnly = true)
     public static int report_queue_size = 100;
@@ -1335,7 +1335,7 @@ public class Config extends ConfigBase {
      * Only enable httpv2 can user to use the new Frontend UI interface
      */
     @ConfField
-    public static boolean enable_http_server_v2 = false;
+    public static boolean enable_http_server_v2 = true;
 
     /*
      * Base path is the URL prefix for all API paths.
