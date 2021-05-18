@@ -151,8 +151,9 @@ struct TBrokerRangeDesc {
     14: optional bool num_as_string;
     15: optional bool fuzzy_parse;
     16: optional THdfsParams hdfs_params
-    17: optional bool parquet_use_id = false
-    18: optional map<i32, string> schema_id_to_name
+    17: optional bool read_json_by_line;
+    18: optional bool parquet_use_id = false
+    19: optional map<i32, string> schema_id_to_name
 }
 
 struct TBrokerScanRangeParams {
