@@ -606,6 +606,12 @@ CONF_mBool(runtime_filter_use_async_rpc, "true");
 // default is 16 MB
 CONF_mInt32(remote_storage_read_buffer_mb, "16");
 
+// Default level of MemTracker to show in web page
+// now MemTracker support two level:
+//      RELEASE: 0
+//      DEBUG: 1
+// the level equal or lower than mem_tracker_level will show in web page
+CONF_Int16(mem_tracker_level, "0");
 } // namespace config
 
 } // namespace doris
