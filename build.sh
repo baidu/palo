@@ -77,7 +77,9 @@ fi
 
 eval set -- "$OPTS"
 
-PARALLEL=$[$(nproc)/4+1]
+ORIG_PARAM_NUM=$#
+
+PARALLEL=
 BUILD_BE=
 BUILD_FE=
 BUILD_UI=
@@ -112,6 +114,20 @@ else
         esac
     done
 fi
+
+if [ ! -z ${PARALLEL} -a $ORIG_PARAM_NUM == 3 ] ; then 
+    # only specify parallel parameter, enable other module
+    BUILD_BE=1
+    BUILD_FE=1
+    BUILD_UI=1
+    BUILD_SPARK_DPP=1
+    CLEAN=0
+fi
+
+if [ -z ${PARALLEL} ];then
+    PARALLEL=$[$(nproc)/4+1]
+fi
+
 
 if [[ ${HELP} -eq 1 ]]; then
     usage

@@ -169,7 +169,7 @@ public class VariableMgrTest {
         Assert.assertEquals("-08:00", VariableMgr.newSessionVariable().getTimeZone());
 
         SetVar setVar8 = new SetVar(SetType.SESSION, "runtime_filter_type", new StringLiteral(
-                SqlModeHelper.encode("BLOOM_FILTER").toString()));
+                RuntimeFilterTypeHelper.encode("BLOOM_FILTER").toString()));
         setVar8.analyze(null);
         VariableMgr.setVar(var, setVar8);
         Assert.assertEquals(2L, var.getRuntimeFilterType());

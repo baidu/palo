@@ -37,6 +37,9 @@ BufferedReader::BufferedReader(RuntimeProfile* profile, FileReader* reader, int6
         _buffer_size = config::remote_storage_read_buffer_mb * 1024L * 1024L;
     }
     _buffer = new char[_buffer_size];
+    // set the _cur_offset of this reader as same as the inner reader's,
+    // to make sure the buffer reader will start to read at right position.
+    _reader->tell(&_cur_offset);
 }
 
 BufferedReader::~BufferedReader() {
