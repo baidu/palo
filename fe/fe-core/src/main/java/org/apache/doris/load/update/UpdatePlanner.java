@@ -21,11 +21,13 @@ import org.apache.doris.analysis.Analyzer;
 import org.apache.doris.analysis.BinaryPredicate;
 import org.apache.doris.analysis.DescriptorTable;
 import org.apache.doris.analysis.Expr;
+import org.apache.doris.analysis.NullLiteral;
 import org.apache.doris.analysis.SlotDescriptor;
 import org.apache.doris.analysis.SlotRef;
 import org.apache.doris.analysis.TupleDescriptor;
 import org.apache.doris.catalog.Column;
 import org.apache.doris.catalog.OlapTable;
+import org.apache.doris.common.AnalysisException;
 import org.apache.doris.common.IdGenerator;
 import org.apache.doris.common.UserException;
 import org.apache.doris.planner.DataPartition;
@@ -117,7 +119,26 @@ public class UpdatePlanner extends Planner {
         return targetTupleDesc;
     }
 
-    private List<Expr> computeOutputExprs() {
+    /**
+     * There are three Rules of output exprs:
+     * RuleA: columns that need to be updated,
+     * use the right child of a set expr
+     *     base column: (k1, v1)
+     *     update stmt: set v1=1
+     *     output expr: k1, 1(use 1 as output expr)
+     * RuleB: columns that do not need to be updated,
+     * just add the original value of column -> slot ref
+     *     base column: (k1, v1)
+     *     update stmt: set v1 = 1
+     *     output expr: k1(use k1 slot ref as output expr), 1
+     * RuleC: the output columns is being added by the schema change job,
+     * need to add default value expr in output expr
+     *     base column: (k1, v1)
+     *     schema change job: add v2 column
+     *     full column: (k1, v1, v2)
+     *     output expr: k1, v1, default_value(v2)
+     */
+    private List<Expr> computeOutputExprs() throws AnalysisException {
         Map<String, Expr> columnNameToSetExpr = Maps.newHashMap();
         for (Expr setExpr : setExprs) {
             Preconditions.checkState(setExpr instanceof BinaryPredicate);
@@ -141,13 +162,28 @@ public class UpdatePlanner extends Planner {
                     column.getName().substring(SHADOW_NAME_PRFIX.length()) : column.getName())
                     .toLowerCase();
             Expr setExpr = columnNameToSetExpr.get(originColumnName);
-            if (setExpr == null) {
-                SlotDescriptor srcSlotDesc = columnNameToSrcSlotDesc.get(originColumnName);
-                Preconditions.checkState(srcSlotDesc != null, "Column not found:" + originColumnName);
+            SlotDescriptor srcSlotDesc = columnNameToSrcSlotDesc.get(originColumnName);
+            if (setExpr != null) {
+                // RuleA
+                outputExprs.add(setExpr);
+            } else if (srcSlotDesc != null) {
+                // RuleB
                 SlotRef slotRef = new SlotRef(srcSlotDesc);
                 outputExprs.add(slotRef);
             } else {
-                outputExprs.add(setExpr);
+                // RuleC
+                Expr defaultExpr;
+                if (column.getDefaultValue() != null) {
+                    defaultExpr = column.getDefaultValueExpr();
+                } else {
+                    if (column.isAllowNull()) {
+                        defaultExpr = NullLiteral.create(column.getType());
+                    } else {
+                        throw new AnalysisException("column has no source field, column=" + column.getName());
+                    }
+                }
+                defaultExpr.analyze(analyzer);
+                outputExprs.add(defaultExpr);
             }
         }
         return outputExprs;
