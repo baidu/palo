@@ -75,6 +75,15 @@ public class UpdateStmtExecutor {
     }
 
     public void execute() throws UserException {
+        // 0. empty set
+        // A where clause with a constant equal to false will not execute the update directly
+        // Example: update xxx set v1=0 where 1=2
+        if (analyzer.hasEmptyResultSet()) {
+            QeProcessorImpl.INSTANCE.unregisterQuery(queryId);
+            analyzer.getContext().getState().setOk();
+            return;
+        }
+
         // 1. begin txn
         beginTxn();
 
