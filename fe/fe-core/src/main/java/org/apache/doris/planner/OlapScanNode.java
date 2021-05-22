@@ -874,4 +874,16 @@ public class OlapScanNode extends ScanNode {
             conjuncts.add(conjunct);
         }
     }
+
+    public DataPartition constructInputPartitionByDistributionInfo() {
+        DistributionInfo distributionInfo = olapTable.getDefaultDistributionInfo();
+        Preconditions.checkState(distributionInfo instanceof HashDistributionInfo);
+        List<Column> distributeColumns = ((HashDistributionInfo) distributionInfo).getDistributionColumns();
+        List<Expr> dataDistributeExprs = Lists.newArrayList();
+        for (Column column : distributeColumns) {
+            SlotRef slotRef = new SlotRef(desc.getRef().getName(), column.getName());
+            dataDistributeExprs.add(slotRef);
+        }
+        return DataPartition.hashPartitioned(dataDistributeExprs);
+    }
 }
