@@ -897,6 +897,7 @@ non_null_result_with_null_param_functions = [
     'hll_hash',
     'concat_ws',
     'ifnull',
+    'nullif',
     'null_or_empty',
     'coalesce'
 ]
