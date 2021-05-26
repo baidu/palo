@@ -1,6 +1,6 @@
 ---
 {
-    "title": "SHOW DATABASE",
+    "title": "SHOW DATABASE ID",
     "language": "en"
 }
 ---
@@ -24,7 +24,7 @@ specific language governing permissions and limitations
 under the License.
 -->
 
-# SHOW DATABASE
+# SHOW DATABASE ID
 ## Description
 This statement is used to display database name according to database id (for administrators only)
 Grammar:
@@ -35,4 +35,4 @@ SHOW DATABASE [database_id]
 SHOW DATABASE 1001;
 
 ## keyword
-SHOW,DATABASE
+SHOW,DATABASE,ID

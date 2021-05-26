@@ -1,6 +1,6 @@
 ---
 {
-    "title": "SHOW TABLE",
+    "title": "SHOW TABLE ID",
     "language": "zh-CN"
 }
 ---
@@ -24,7 +24,7 @@ specific language governing permissions and limitations
 under the License.
 -->
 
-# SHOW DATABASE
+# SHOW TABLE ID
 ## description
     该语句用于根据 table id 查找对应的 database name, table name（仅管理员使用）
     语法：
@@ -35,5 +35,5 @@ under the License.
         SHOW TABLE 10001;
 
 ## keyword
-    SHOW,TABLE
+    SHOW,TABLE,ID
 

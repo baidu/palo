@@ -19,6 +19,8 @@ package org.apache.doris.journal;
 
 import org.apache.doris.common.io.Writable;
 
+import com.sleepycat.je.DatabaseConfig;
+
 import java.io.IOException;
 import java.util.List;
 
@@ -48,14 +50,16 @@ public interface Journal {
 
     // Write a journal and sync to disk
     public void write(short op, Writable writable) throws IOException;
-    
+
     // Delete journals whose max id is less than deleteToJournalId
     public void deleteJournals(long deleteJournalToId);
-    
+
     // Current db's min journal id - 1
     public long getFinalizedJournalId();
-    
+
     // Get all the dbs' name
     public List<Long> getDatabaseNames();
-    
+
+    // Get the number of journal in the specified database
+    public long getCountOfDatabase(String dbName, DatabaseConfig config);
 }

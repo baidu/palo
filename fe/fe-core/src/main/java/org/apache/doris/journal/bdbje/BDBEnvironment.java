@@ -43,6 +43,8 @@ import com.sleepycat.je.rep.StateChangeListener;
 import com.sleepycat.je.rep.util.DbResetRepGroup;
 import com.sleepycat.je.rep.util.ReplicationGroupAdmin;
 
+import com.google.common.base.Preconditions;
+
 import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -414,5 +416,10 @@ public class BDBEnvironment {
         // default value is SIMPLE_MAJORITY
         return Durability.ReplicaAckPolicy.SIMPLE_MAJORITY;
     }
-    
+
+    // Open a database along. This database should be read only
+    public Database openDatabaseAlong(String dbName, DatabaseConfig dbConfig) {
+        Preconditions.checkState(dbConfig.getReadOnly());
+        return this.replicatedEnvironment.openDatabase(null, dbName, dbConfig);
+    }
 }

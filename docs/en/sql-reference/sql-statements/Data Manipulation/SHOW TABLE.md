@@ -1,6 +1,6 @@
 ---
 {
-    "title": "SHOW TABLE",
+    "title": "SHOW TABLE ID",
     "language": "en"
 }
 ---
@@ -24,7 +24,7 @@ specific language governing permissions and limitations
 under the License.
 -->
 
-# SHOW TABLE
+# SHOW TABLE ID
 ## Description
 This statement is used to display database name, table name according to table id (for administrators only)
 Grammar:
@@ -35,4 +35,4 @@ SHOW TABLE [table_id]
 SHOW TABLE 10001;
 
 ## keyword
-SHOW,TABLE
+SHOW,TABLE,ID

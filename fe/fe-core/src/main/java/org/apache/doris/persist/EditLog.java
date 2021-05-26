@@ -65,6 +65,8 @@ import org.apache.doris.system.Backend;
 import org.apache.doris.system.Frontend;
 import org.apache.doris.transaction.TransactionState;
 
+import com.sleepycat.je.DatabaseConfig;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -114,6 +116,10 @@ public class EditLog {
 
     public List<Long> getDatabaseNames() {
         return journal.getDatabaseNames();
+    }
+
+    public Long getCountOfDatabase(String dbName, DatabaseConfig dbConfig) {
+        return journal.getCountOfDatabase(dbName, dbConfig);
     }
 
     public synchronized int getNumEditStreams() {

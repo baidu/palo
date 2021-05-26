@@ -17,12 +17,14 @@
 
 package org.apache.doris.common.proc;
 
+import org.apache.doris.catalog.Catalog;
 import org.apache.doris.common.AnalysisException;
 import org.apache.doris.common.Config;
 import org.apache.doris.journal.bdbje.BDBDebugger;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
+import com.sleepycat.je.DatabaseConfig;
 
 import java.util.List;
 import java.util.Map;
@@ -45,23 +47,35 @@ public class BDBJEProcDir implements ProcDirInterface  {
 
     @Override
     public ProcResult fetchResult() throws AnalysisException {
-        if (!Config.enable_bdbje_debug_mode) {
-            throw new AnalysisException("Not in bdbje debug mode");
-        }
-
         BaseProcResult result = new BaseProcResult();
         result.setNames(TITLE_NAMES);
 
-        BDBDebugger.BDBDebugEnv debugEnv = BDBDebugger.get().getEnv();
-        List<String> dbNames = debugEnv.listDbNames();
-        TreeMap<String, Long> journalNumMap = new TreeMap<>();
-        for (String dbName : dbNames) {
-            journalNumMap.put(dbName, debugEnv.getJournalNumber(dbName));
-        }
-
+        TreeMap<String, Long> journalNumMap = getDbNamesWithJournalNumber();
         for (Map.Entry<String, Long> entry : journalNumMap.entrySet()) {
             result.addRow(Lists.newArrayList(entry.getKey(), entry.getValue().toString(), ""));
         }
         return result;
+    }
+
+    private TreeMap<String, Long> getDbNamesWithJournalNumber() {
+        TreeMap<String, Long> journalNumMap = new TreeMap<>();
+        if (Config.enable_bdbje_debug_mode) {
+            BDBDebugger.BDBDebugEnv debugEnv = BDBDebugger.get().getEnv();
+            List<String> dbNames = debugEnv.listDbNames();
+            for (String dbName : dbNames) {
+                journalNumMap.put(dbName, debugEnv.getJournalNumber(dbName));
+            }
+        } else {
+            List<Long> dbNames = Catalog.getCurrentCatalog().getEditLog().getDatabaseNames();
+            DatabaseConfig dbConfig = new DatabaseConfig();
+            dbConfig.setTransactional(true);
+            dbConfig.setReadOnly(true);
+            dbConfig.setAllowCreate(false);
+            for (Long dbName : dbNames) {
+                journalNumMap.put(dbName.toString(),
+                        Catalog.getCurrentCatalog().getEditLog().getCountOfDatabase(dbName.toString(), dbConfig));
+            }
+        }
+        return journalNumMap;
     }
 }

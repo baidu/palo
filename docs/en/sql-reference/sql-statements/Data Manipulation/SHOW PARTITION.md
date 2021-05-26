@@ -1,6 +1,6 @@
 ---
 {
-    "title": "SHOW PARTITION",
+    "title": "SHOW PARTITION ID",
     "language": "en"
 }
 ---
@@ -24,7 +24,7 @@ specific language governing permissions and limitations
 under the License.
 -->
 
-# SHOW PARTITION
+# SHOW PARTITION ID
 ## Description
 This statement is used to display database name, table name, partition name according to partition id (for administrators only)
 Grammar:
@@ -35,4 +35,4 @@ SHOW PARTITION [partition_id]
 SHOW PARTITION 10002;
 
 ## keyword
-SHOW,PARTITION
+SHOW,PARTITION,ID

@@ -30,6 +30,7 @@ import org.apache.doris.persist.OperationType;
 
 import com.sleepycat.bind.tuple.TupleBinding;
 import com.sleepycat.je.Database;
+import com.sleepycat.je.DatabaseConfig;
 import com.sleepycat.je.DatabaseEntry;
 import com.sleepycat.je.DatabaseException;
 import com.sleepycat.je.LockMode;
@@ -412,26 +413,32 @@ public class BDBJEJournal implements Journal {
         
         return dbNames.get(dbNames.size() - 1) - 1;
     }
-    
+
     @Override
     public List<Long> getDatabaseNames() {
         if (bdbEnvironment == null) {
             return null;
         }
-        
+
         return bdbEnvironment.getDatabaseNames();
     }
-    
-    public boolean isPortUsing(String host, int port) throws UnknownHostException {  
-        boolean flag = false;  
+
+    @Override
+    public long getCountOfDatabase(String dbName, DatabaseConfig dbConfig) {
+        Database db = bdbEnvironment.openDatabaseAlong(dbName, dbConfig);
+        return db.count();
+    }
+
+    public boolean isPortUsing(String host, int port) throws UnknownHostException {
+        boolean flag = false;
         InetAddress theAddress = InetAddress.getByName(host);
-        try {  
+        try {
             Socket socket = new Socket(theAddress, port);
             flag = true;
             socket.close();
         } catch (IOException e) {
             // do nothing
-        }  
-        return flag;  
+        }
+        return flag;
     }
 }

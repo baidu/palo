@@ -25,6 +25,9 @@ import org.apache.doris.persist.EditLogFileOutputStream;
 import org.apache.doris.persist.EditLogOutputStream;
 import org.apache.doris.persist.Storage;
 
+import com.sleepycat.je.DatabaseConfig;
+
+import org.apache.commons.lang.NotImplementedException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -175,12 +178,17 @@ public class LocalJournal implements Journal {
         while (cursor.next() != null) {
             ret++;
         }
-        
+
         return ret;
     }
 
     @Override
     public List<Long> getDatabaseNames() {
         throw new RuntimeException("Not Support");
+    }
+
+    @Override
+    public long getCountOfDatabase(String dbName, DatabaseConfig config) {
+        throw new NotImplementedException("not support");
     }
 }

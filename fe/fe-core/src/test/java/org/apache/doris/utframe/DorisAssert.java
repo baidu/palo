@@ -35,10 +35,9 @@ import org.apache.doris.common.util.SqlParserUtils;
 import org.apache.doris.planner.Planner;
 import org.apache.doris.qe.ConnectContext;
 import org.apache.doris.qe.QueryState;
+import org.apache.doris.qe.SessionVariable;
 import org.apache.doris.qe.StmtExecutor;
 import org.apache.doris.system.SystemInfoService;
-
-import org.apache.doris.qe.SessionVariable;
 
 import org.apache.commons.lang.StringUtils;
 import org.junit.Assert;
@@ -89,6 +88,13 @@ public class DorisAssert {
     public DorisAssert dropTable(String tableName) throws Exception {
         DropTableStmt dropTableStmt =
                 (DropTableStmt) UtFrameUtils.parseAndAnalyzeStmt("drop table " + tableName + ";", ctx);
+        Catalog.getCurrentCatalog().dropTable(dropTableStmt);
+        return this;
+    }
+
+    public DorisAssert dropTableForce(String tableName) throws Exception {
+        DropTableStmt dropTableStmt =
+                (DropTableStmt) UtFrameUtils.parseAndAnalyzeStmt("drop table " + tableName + " force;", ctx);
         Catalog.getCurrentCatalog().dropTable(dropTableStmt);
         return this;
     }

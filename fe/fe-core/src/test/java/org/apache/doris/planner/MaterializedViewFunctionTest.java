@@ -82,9 +82,9 @@ public class MaterializedViewFunctionTest {
 
     @After
     public void afterMethod() throws Exception {
-        dorisAssert.dropTable(EMPS_TABLE_NAME);
-        dorisAssert.dropTable(DEPTS_TABLE_NAME);
-        dorisAssert.dropTable(USER_TAG_TABLE_NAME);
+        dorisAssert.dropTableForce(EMPS_TABLE_NAME);
+        dorisAssert.dropTableForce(DEPTS_TABLE_NAME);
+        dorisAssert.dropTableForce(USER_TAG_TABLE_NAME);
     }
 
     @AfterClass
@@ -607,7 +607,7 @@ public class MaterializedViewFunctionTest {
                 + "k1,k2;";
         String query = "select k1 from " + TEST_TABLE_NAME + " group by k1 having max(v1) > 10;";
         dorisAssert.withMaterializedView(createK1K2MV).query(query).explainWithout("k1_k2");
-        dorisAssert.dropTable(TEST_TABLE_NAME);
+        dorisAssert.dropTableForce(TEST_TABLE_NAME);
     }
 
     @Test
@@ -621,7 +621,7 @@ public class MaterializedViewFunctionTest {
                 + "k1,k2;";
         String query = "select k1 from " + TEST_TABLE_NAME + " group by k1 order by max(v1);";
         dorisAssert.withMaterializedView(createK1K2MV).query(query).explainWithout("k1_k2");
-        dorisAssert.dropTable(TEST_TABLE_NAME);
+        dorisAssert.dropTableForce(TEST_TABLE_NAME);
     }
 
     @Test
@@ -635,7 +635,7 @@ public class MaterializedViewFunctionTest {
                 + "k1,k2;";
         String query = "select k1 , sum(k2) over (partition by v1 ) from " + TEST_TABLE_NAME + ";";
         dorisAssert.withMaterializedView(createK1K2MV).query(query).explainWithout("k1_k2");
-        dorisAssert.dropTable(TEST_TABLE_NAME);
+        dorisAssert.dropTableForce(TEST_TABLE_NAME);
     }
 
     @Test
@@ -647,7 +647,7 @@ public class MaterializedViewFunctionTest {
                 + "k1;";
         String query = "select * from " + TEST_TABLE_NAME + ";";
         dorisAssert.withMaterializedView(createK1K2MV).query(query).explainContains(TEST_TABLE_NAME);
-        dorisAssert.dropTable(TEST_TABLE_NAME);
+        dorisAssert.dropTableForce(TEST_TABLE_NAME);
 
 
     }
@@ -717,7 +717,7 @@ public class MaterializedViewFunctionTest {
         dorisAssert.withTable(aggTable);
         String query = "select k1, count(distinct v1) from " + TEST_TABLE_NAME + " group by k1;";
         dorisAssert.query(query).explainContains(TEST_TABLE_NAME, "bitmap_union_count");
-        dorisAssert.dropTable(TEST_TABLE_NAME);
+        dorisAssert.dropTableForce(TEST_TABLE_NAME);
     }
 
     @Test
@@ -727,7 +727,7 @@ public class MaterializedViewFunctionTest {
         dorisAssert.withTable(aggTable);
         String query = "select k1, count(distinct v1) from " + TEST_TABLE_NAME + " group by k1;";
         dorisAssert.query(query).explainContains(TEST_TABLE_NAME, "hll_union_agg");
-        dorisAssert.dropTable(TEST_TABLE_NAME);
+        dorisAssert.dropTableForce(TEST_TABLE_NAME);
     }
 
     @Test
@@ -831,6 +831,6 @@ public class MaterializedViewFunctionTest {
         dorisAssert.withMaterializedView(createMVSQL);
         String query = "select count(distinct salary) from agg_table;";
         dorisAssert.query(query).explainContains("mv");
-        dorisAssert.dropTable("agg_table");
+        dorisAssert.dropTableForce("agg_table");
     }
 }
