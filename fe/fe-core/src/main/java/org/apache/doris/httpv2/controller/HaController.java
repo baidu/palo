@@ -152,7 +152,7 @@ public class HaController {
     private void appendDbNames(Map<String, Object> result) {
         Map<String, Object> dbs = new HashMap<>();
 
-        List<Long> names = Catalog.getCurrentCatalog().getEditLog().getDatabaseNames();
+        List<Long> names = Catalog.getCurrentCatalog().getEditLog().getDatabaseNames(false);
         if (names == null) {
             return;
         }

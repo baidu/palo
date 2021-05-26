@@ -58,7 +58,7 @@ public interface Journal {
     public long getFinalizedJournalId();
 
     // Get all the dbs' name
-    public List<Long> getDatabaseNames();
+    public List<Long> getDatabaseNames(boolean onlyMetaDb);
 
     // Get the number of journal in the specified database
     public long getCountOfDatabase(String dbName, DatabaseConfig config);

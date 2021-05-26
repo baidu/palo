@@ -114,8 +114,8 @@ public class EditLog {
         journal.deleteJournals(deleteToJournalId);
     }
 
-    public List<Long> getDatabaseNames() {
-        return journal.getDatabaseNames();
+    public List<Long> getDatabaseNames(boolean onlyMetaDb) {
+        return journal.getDatabaseNames(onlyMetaDb);
     }
 
     public Long getCountOfDatabase(String dbName, DatabaseConfig dbConfig) {

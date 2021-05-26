@@ -192,7 +192,7 @@ public class BDBJEJournal implements Journal {
 
     @Override
     public JournalEntity read(long journalId) {
-        List<Long> dbNames = bdbEnvironment.getDatabaseNames();
+        List<Long> dbNames = bdbEnvironment.getDatabaseNames(true);
         if (dbNames == null) {
             return null;
         }
@@ -253,7 +253,7 @@ public class BDBJEJournal implements Journal {
         if (bdbEnvironment == null) {
             return ret;
         }
-        List<Long> dbNames = bdbEnvironment.getDatabaseNames();
+        List<Long> dbNames = bdbEnvironment.getDatabaseNames(true);
         if (dbNames == null) {
             return ret;
         }
@@ -276,7 +276,7 @@ public class BDBJEJournal implements Journal {
         if (bdbEnvironment == null) {
             return ret;
         }
-        List<Long> dbNames = bdbEnvironment.getDatabaseNames();
+        List<Long> dbNames = bdbEnvironment.getDatabaseNames(true);
         if (dbNames == null) {
             return ret;
         }
@@ -324,7 +324,7 @@ public class BDBJEJournal implements Journal {
         List<Long> dbNames = null;
         for (int i = 0; i < RETRY_TIME; i++) {
             try {
-                dbNames = bdbEnvironment.getDatabaseNames();
+                dbNames = bdbEnvironment.getDatabaseNames(true);
                 
                 if (dbNames == null) {
                     LOG.error("fail to get dbNames while open bdbje journal. will exit");
@@ -366,7 +366,7 @@ public class BDBJEJournal implements Journal {
     
     @Override
     public void deleteJournals(long deleteToJournalId) {
-        List<Long> dbNames = bdbEnvironment.getDatabaseNames();
+        List<Long> dbNames = bdbEnvironment.getDatabaseNames(true);
         if (dbNames == null) {
             LOG.info("delete database names is null.");
             return;
@@ -395,7 +395,7 @@ public class BDBJEJournal implements Journal {
     
     @Override
     public long getFinalizedJournalId() {
-        List<Long> dbNames = bdbEnvironment.getDatabaseNames();
+        List<Long> dbNames = bdbEnvironment.getDatabaseNames(true);
         if (dbNames == null) {
             LOG.error("database name is null.");
             return 0;
@@ -415,12 +415,12 @@ public class BDBJEJournal implements Journal {
     }
 
     @Override
-    public List<Long> getDatabaseNames() {
+    public List<Long> getDatabaseNames(boolean onlyMetaDb) {
         if (bdbEnvironment == null) {
             return null;
         }
 
-        return bdbEnvironment.getDatabaseNames();
+        return bdbEnvironment.getDatabaseNames(onlyMetaDb);
     }
 
     @Override

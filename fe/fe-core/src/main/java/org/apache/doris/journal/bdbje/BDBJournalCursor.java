@@ -63,7 +63,7 @@ public class BDBJournalCursor implements JournalCursor {
         this.environment = env;
         this.toKey = toKey;
         this.currentKey = fromKey;
-        this.dbNames = env.getDatabaseNames();
+        this.dbNames = env.getDatabaseNames(true);
         if (dbNames == null) {
             throw new NullPointerException("dbNames is null.");
         }

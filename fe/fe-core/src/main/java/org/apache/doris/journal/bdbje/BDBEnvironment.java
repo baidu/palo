@@ -23,6 +23,7 @@ import org.apache.doris.ha.BDBHA;
 import org.apache.doris.ha.BDBStateChangeListener;
 import org.apache.doris.ha.HAProtocol;
 
+import com.google.common.base.Preconditions;
 import com.sleepycat.je.Database;
 import com.sleepycat.je.DatabaseConfig;
 import com.sleepycat.je.DatabaseException;
@@ -42,8 +43,6 @@ import com.sleepycat.je.rep.ReplicationConfig;
 import com.sleepycat.je.rep.StateChangeListener;
 import com.sleepycat.je.rep.util.DbResetRepGroup;
 import com.sleepycat.je.rep.util.ReplicationGroupAdmin;
-
-import com.google.common.base.Preconditions;
 
 import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -318,9 +317,9 @@ public class BDBEnvironment {
             lock.writeLock().unlock();
         }
     }
-    
+
     // get journal db names and sort the names
-    public List<Long> getDatabaseNames() {
+    public List<Long> getDatabaseNames(boolean onlyMetaDb) {
         List<Long> ret = new ArrayList<Long>();
         List<String> names = null;
         int tried = 0;
@@ -350,7 +349,7 @@ public class BDBEnvironment {
         
         if (names != null) {
             for (String name : names) {
-                if (StringUtils.isNumeric(name)) {
+                if (!onlyMetaDb || StringUtils.isNumeric(name)) {
                     ret.add(Long.parseLong(name));
                 } else {
                     // "epochDB" and "metricDB" will throw this exception. No need to deal with it.
