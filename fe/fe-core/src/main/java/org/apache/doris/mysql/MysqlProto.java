@@ -192,33 +192,6 @@ public class MysqlProto {
             return false;
         }
 
-        // Starting with MySQL 8.0.4, MySQL changed the default authentication plugin for MySQL client
-        // from mysql_native_password to caching_sha2_password.
-        // ref: https://mysqlserverteam.com/mysql-8-0-4-new-default-authentication-plugin-caching_sha2_password/
-        // So, User use mysql client or ODBC Driver after 8.0.4 have problem to connect to Doris
-        // with password.
-        // So Doris support the Protocol::AuthSwitchRequest to tell client to keep the default password plugin
-        // which Doris is using now.
-        // Note: Check the authPacket whether support plugin auth firstly, before we check AuthPlugin between doris and client
-        // to compatible with older version: like mysql 5.1
-        if (authPacket.getCapability().isPluginAuth() &&
-                !handshakePacket.checkAuthPluginSameAsDoris(authPacket.getPluginName())) {
-            // 1. clear the serializer
-            serializer.reset();
-            // 2. build the auth switch request and send to the client
-            handshakePacket.buildAuthSwitchRequest(serializer);
-            channel.sendAndFlush(serializer.toByteBuffer());
-            // Server receive auth switch response packet from client.
-            ByteBuffer authSwitchResponse = channel.fetchOnePacket();
-            if (authSwitchResponse == null) {
-                // receive response failed.
-                return false;
-            }
-            // 3. the client use default password plugin of Doris to dispose
-            // password
-            authPacket.setAuthResponse(readEofString(authSwitchResponse));
-        }
-
         // change the capability of serializer
         context.setCapability(context.getServerCapability());
         serializer.setCapability(context.getCapability());
@@ -263,6 +236,33 @@ public class MysqlProto {
                 return false;
             }
         } else {
+            // Starting with MySQL 8.0.4, MySQL changed the default authentication plugin for MySQL client
+            // from mysql_native_password to caching_sha2_password.
+            // ref: https://mysqlserverteam.com/mysql-8-0-4-new-default-authentication-plugin-caching_sha2_password/
+            // So, User use mysql client or ODBC Driver after 8.0.4 have problem to connect to Doris
+            // with password.
+            // So Doris support the Protocol::AuthSwitchRequest to tell client to keep the default password plugin
+            // which Doris is using now.
+            // Note: Check the authPacket whether support plugin auth firstly, before we check AuthPlugin between doris and client
+            // to compatible with older version: like mysql 5.1
+            if (authPacket.getCapability().isPluginAuth() &&
+                    !handshakePacket.checkAuthPluginSameAsDoris(authPacket.getPluginName())) {
+                // 1. clear the serializer
+                serializer.reset();
+                // 2. build the auth switch request and send to the client
+                handshakePacket.buildAuthSwitchRequest(serializer);
+                channel.sendAndFlush(serializer.toByteBuffer());
+                // Server receive auth switch response packet from client.
+                ByteBuffer authSwitchResponse = channel.fetchOnePacket();
+                if (authSwitchResponse == null) {
+                    // receive response failed.
+                    return false;
+                }
+                // 3. the client use default password plugin of Doris to dispose
+                // password
+                authPacket.setAuthResponse(readEofString(authSwitchResponse));
+            }
+
             // NOTE: when we behind proxy, we need random string sent by proxy.
             byte[] randomString = handshakePacket.getAuthPluginData();
             if (Config.proxy_auth_enable && authPacket.getRandomString() != null) {
