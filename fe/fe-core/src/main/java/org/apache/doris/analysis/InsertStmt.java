@@ -18,7 +18,6 @@
 package org.apache.doris.analysis;
 
 import org.apache.doris.alter.SchemaChangeHandler;
-import org.apache.doris.catalog.AggregateType;
 import org.apache.doris.catalog.BrokerTable;
 import org.apache.doris.catalog.Catalog;
 import org.apache.doris.catalog.Column;
@@ -29,7 +28,6 @@ import org.apache.doris.catalog.OlapTable;
 import org.apache.doris.catalog.Partition;
 import org.apache.doris.catalog.PartitionType;
 import org.apache.doris.catalog.Table;
-import org.apache.doris.catalog.Type;
 import org.apache.doris.common.AnalysisException;
 import org.apache.doris.common.DdlException;
 import org.apache.doris.common.ErrorCode;
@@ -555,15 +553,8 @@ public class InsertStmt extends DdlStmt {
             // check compatibility
             for (int i = 0; i < targetColumns.size(); ++i) {
                 Column column = targetColumns.get(i);
-                if (column.getType().isHllType()) {
-                    Expr expr = queryStmt.getResultExprs().get(i);
-                    checkHllCompatibility(column, expr);
-                }
-
-                if (column.getAggregationType() == AggregateType.BITMAP_UNION) {
-                    Expr expr = queryStmt.getResultExprs().get(i);
-                    checkBitmapCompatibility(column, expr);
-                }
+                Expr expr = queryStmt.getResultExprs().get(i);
+                queryStmt.getResultExprs().set(i, expr.checkTypeCompatibility(column.getType()));
             }
         }
 
@@ -643,11 +634,6 @@ public class InsertStmt extends DdlStmt {
             Expr expr = row.get(i);
             Column col = targetColumns.get(i);
 
-            // TargetTable's hll column must be hll_hash's result
-            if (col.getType().equals(Type.HLL)) {
-                checkHllCompatibility(col, expr);
-            }
-
             if (expr instanceof DefaultValueExpr) {
                 if (targetColumns.get(i).getDefaultValue() == null) {
                     throw new AnalysisException("Column has no default value, column=" + targetColumns.get(i).getName());
@@ -657,11 +643,7 @@ public class InsertStmt extends DdlStmt {
 
             expr.analyze(analyzer);
 
-            if (col.getAggregationType() == AggregateType.BITMAP_UNION) {
-                checkBitmapCompatibility(col, expr);
-            }
-
-            row.set(i, checkTypeCompatibility(col, expr));
+            row.set(i, expr.checkTypeCompatibility(col.getType()));
         }
     }
 
@@ -693,41 +675,7 @@ public class InsertStmt extends DdlStmt {
             }
         }
     }
-    private void checkHllCompatibility(Column col, Expr expr) throws AnalysisException {
-        final String hllMismatchLog = "Column's type is HLL,"
-                + " SelectList must contains HLL or hll_hash or hll_empty function's result, column=" + col.getName();
-        if (expr instanceof SlotRef) {
-            final SlotRef slot = (SlotRef) expr;
-            if (!slot.getType().equals(Type.HLL)) {
-                throw new AnalysisException(hllMismatchLog);
-            }
-        } else if (expr instanceof FunctionCallExpr) {
-            final FunctionCallExpr functionExpr = (FunctionCallExpr) expr;
-            if (!functionExpr.getFnName().getFunction().equalsIgnoreCase("hll_hash") &&
-                    !functionExpr.getFnName().getFunction().equalsIgnoreCase("hll_empty")) {
-                throw new AnalysisException(hllMismatchLog);
-            }
-        } else {
-            throw new AnalysisException(hllMismatchLog);
-        }
-    }
 
-    private void checkBitmapCompatibility(Column col, Expr expr) throws AnalysisException {
-        String errorMsg = String.format("bitmap column %s require the function return type is BITMAP",
-                col.getName());
-        if (!expr.getType().isBitmapType()) {
-            throw new AnalysisException(errorMsg);
-        }
-    }
-
-    private Expr checkTypeCompatibility(Column col, Expr expr) throws AnalysisException {
-        if (col.getDataType().equals(expr.getType().getPrimitiveType())) {
-            return expr;
-        }
-        Expr newExpr = expr.castTo(col.getType());
-        newExpr.checkValueValid();
-        return newExpr;
-    }
 
     public void prepareExpressions() throws UserException {
         List<Expr> selectList = Expr.cloneList(queryStmt.getBaseTblResultExprs());
@@ -735,7 +683,7 @@ public class InsertStmt extends DdlStmt {
         int numCols = targetColumns.size();
         for (int i = 0; i < numCols; ++i) {
             Column col = targetColumns.get(i);
-            Expr expr = checkTypeCompatibility(col, selectList.get(i));
+            Expr expr = selectList.get(i).checkTypeCompatibility(col.getType());
             selectList.set(i, expr);
             exprByName.put(col.getName(), expr);
         }
@@ -754,7 +702,8 @@ public class InsertStmt extends DdlStmt {
                     resultExprs.add(NullLiteral.create(col.getType()));
                 }
                 else {
-                    resultExprs.add(checkTypeCompatibility(col, new StringLiteral(col.getDefaultValue())));
+                    StringLiteral defaultValueExpr = new StringLiteral(col.getDefaultValue());
+                    resultExprs.add(defaultValueExpr.checkTypeCompatibility(col.getType()));
                 }
             }
         }

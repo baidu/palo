@@ -154,30 +154,24 @@ public class UpdateStmt extends DdlStmt {
         // step2: resolve target columns with catalog,
         //        only value columns which belong to target table could be updated.
         for (Expr setExpr : setExprs) {
-            // columns must belong to target table
-            setExpr.analyze(analyzer);
             Preconditions.checkState(setExpr instanceof BinaryPredicate);
-            // only value columns could be updated
+            // check target column
+            // 1. columns must belong to target table
+            // 2. only value columns could be updated
             Expr lhs = setExpr.getChild(0);
             if (!(lhs instanceof SlotRef)) {
-                throw new AnalysisException("Types on the left and right sides of the expr do not match: " + setExpr.toSql());
+                throw new AnalysisException("The left side of the set expr must be the column name");
             }
-            Preconditions.checkState(lhs instanceof SlotRef);
+            lhs.analyze(analyzer);
             if (((SlotRef) lhs).getColumn().getAggregationType() != AggregateType.REPLACE) {
                 throw new AnalysisException("Only value columns of unique table could be updated.");
             }
-            checkLargeIntOverflow(setExpr.getChild(1));
-        }
-    }
-
-    /*
-    The overflow detection of LargeInt needs to be verified again here.
-    The reason is: the first overflow detection(in constructor) cannot filter 2^127.
-    Therefore, a second verification is required here.
-     */
-    private void checkLargeIntOverflow(Expr expr) throws AnalysisException {
-        if (expr instanceof LargeIntLiteral) {
-            expr.analyzeImpl(analyzer);
+            // check set expr of target column
+            Expr rhs = setExpr.getChild(1);
+            rhs.analyze(analyzer);
+            if (lhs.getType() != rhs.getType()) {
+                setExpr.setChild(1, rhs.checkTypeCompatibility(lhs.getType()));
+            }
         }
     }
 
