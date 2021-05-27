@@ -166,6 +166,18 @@ public class UpdateStmt extends DdlStmt {
             if (((SlotRef) lhs).getColumn().getAggregationType() != AggregateType.REPLACE) {
                 throw new AnalysisException("Only value columns of unique table could be updated.");
             }
+            checkLargeIntOverflow(setExpr.getChild(1));
+        }
+    }
+
+    /*
+    The overflow detection of LargeInt needs to be verified again here.
+    The reason is: the first overflow detection(in constructor) cannot filter 2^127.
+    Therefore, a second verification is required here.
+     */
+    private void checkLargeIntOverflow(Expr expr) throws AnalysisException {
+        if (expr instanceof LargeIntLiteral) {
+            expr.analyzeImpl(analyzer);
         }
     }
 
