@@ -298,6 +298,10 @@ public class InsertStmt extends DdlStmt {
 
         analyzePlanHints(analyzer);
 
+        if (analyzer.getContext().isTxnModel()) {
+            return;
+        }
+
         // create data sink
         createDataSink();
 
