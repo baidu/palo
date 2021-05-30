@@ -1160,19 +1160,6 @@ public abstract class LoadJob extends AbstractTxnStateChangeCallback implements 
         }
     }
 
-    // Return true if this job is finished for a long time
-    public boolean isExpired(long currentTimeMs) {
-        if (!isCompleted()) {
-            return false;
-        }
-        long expireTime = Config.label_keep_max_second;
-        if (jobType ==EtlJobType.INSERT) {
-            expireTime = Config.streaming_label_keep_max_second;
-        }
-
-        return (currentTimeMs - getFinishTimestamp()) / 1000 > expireTime;
-    }
-
     // unit: second
     protected long getTimeout() {
         return (long) jobProperties.get(LoadStmt.TIMEOUT_PROPERTY);
@@ -1206,4 +1193,28 @@ public abstract class LoadJob extends AbstractTxnStateChangeCallback implements 
         return (int) jobProperties.get(LoadStmt.LOAD_PARALLELISM);
     }
 
+    // Return true if this job is finished for a long time
+    public boolean isExpired(long currentTimeMs) {
+        if (!isCompleted()) {
+            return false;
+        }
+        long expireTime = Config.label_keep_max_second;
+        if (jobType == EtlJobType.INSERT) {
+            expireTime = Config.streaming_label_keep_max_second;
+        }
+
+        return (currentTimeMs - getFinishTimestamp()) / 1000 > expireTime;
+    }
+
+    public FailMsg getFailMsg() {
+        return failMsg;
+    }
+
+    public EtlStatus getLoadingStatus() {
+        return loadingStatus;
+    }
+
+    public LoadStatistic getLoadStatistic() {
+        return loadStatistic;
+    }
 }
