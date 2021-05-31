@@ -25,7 +25,6 @@ import org.apache.doris.thrift.TNetworkAddress;
 import org.apache.doris.thrift.TStatusCode;
 import org.apache.doris.thrift.TWaitingTxnStatusRequest;
 import org.apache.doris.thrift.TWaitingTxnStatusResult;
-import org.apache.doris.transaction.TransactionStatus;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -100,7 +99,7 @@ public class MasterTxnExecutor {
         }
     }
 
-    public TransactionStatus getWaitingTxnStatus(TWaitingTxnStatusRequest request) throws TException {
+    public TWaitingTxnStatusResult getWaitingTxnStatus(TWaitingTxnStatusRequest request) throws TException {
         TNetworkAddress thriftAddress = getMasterAddress();
 
         FrontendService.Client client = getClient(thriftAddress);
@@ -114,7 +113,7 @@ public class MasterTxnExecutor {
             if (result.getStatus().getStatusCode() != TStatusCode.OK) {
                 throw new TException("get txn status failed.");
             }
-            return TransactionStatus.valueOf(result.getTxnStatusId());
+            return result;
         } catch (TTransportException e) {
             boolean ok = ClientPool.frontendPool.reopen(client, thriftTimeoutMs);
             if (!ok) {
@@ -128,7 +127,7 @@ public class MasterTxnExecutor {
                     throw new TException("commit failed.");
                 }
                 isReturnToPool = true;
-                return TransactionStatus.valueOf(result.getTxnStatusId());
+                return result;
             }
         } finally {
             if (isReturnToPool) {

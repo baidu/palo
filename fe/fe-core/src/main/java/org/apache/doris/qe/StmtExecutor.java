@@ -26,6 +26,7 @@ import org.apache.doris.analysis.ExportStmt;
 import org.apache.doris.analysis.Expr;
 import org.apache.doris.analysis.InsertStmt;
 import org.apache.doris.analysis.KillStmt;
+import org.apache.doris.analysis.NullLiteral;
 import org.apache.doris.analysis.OutFileClause;
 import org.apache.doris.analysis.QueryStmt;
 import org.apache.doris.analysis.RedirectStatus;
@@ -110,6 +111,7 @@ import org.apache.doris.thrift.TStreamLoadPutRequest;
 import org.apache.doris.thrift.TTxnParams;
 import org.apache.doris.thrift.TUniqueId;
 import org.apache.doris.thrift.TWaitingTxnStatusRequest;
+import org.apache.doris.thrift.TWaitingTxnStatusResult;
 import org.apache.doris.transaction.TabletCommitInfo;
 import org.apache.doris.transaction.TransactionCommitFailedException;
 import org.apache.doris.transaction.TransactionEntry;
@@ -890,16 +892,16 @@ public class StmtExecutor implements ProfileWriter {
         plannerProfile.setQueryFetchResultFinishTime();
     }
 
-    private TransactionStatus getWaitingTxnStatus(TWaitingTxnStatusRequest request) throws Exception {
-        TransactionStatus txnStatus = null;
+    private TWaitingTxnStatusResult getWaitingTxnStatus(TWaitingTxnStatusRequest request) throws Exception {
+        TWaitingTxnStatusResult statusResult = null;
         if (Catalog.getCurrentCatalog().isMaster()) {
-            txnStatus = Catalog.getCurrentGlobalTransactionMgr()
+            statusResult = Catalog.getCurrentGlobalTransactionMgr()
                     .getWaitingTxnStatus(request);
         } else {
             MasterTxnExecutor masterTxnExecutor = new MasterTxnExecutor(context);
-            txnStatus = masterTxnExecutor.getWaitingTxnStatus(request);
+            statusResult = masterTxnExecutor.getWaitingTxnStatus(request);
         }
-        return txnStatus;
+        return statusResult;
     }
 
     private void handleTransactionStmt() throws Exception {
@@ -917,6 +919,11 @@ public class StmtExecutor implements ProfileWriter {
             }
             TTxnParams txnParams = new TTxnParams();
             txnParams.setNeedTxn(true).setThriftRpcTimeoutMs(5000).setTxnId(-1).setDb("").setTbl("");
+            if (context.getSessionVariable().getEnableInsertStrict()) {
+                txnParams.setMaxFilterRatio(0);
+            } else {
+                txnParams.setMaxFilterRatio(1.0);
+            }
             if (context.getTxnEntry() == null) {
                 context.setTxnEntry(new TransactionEntry());
             }
@@ -965,11 +972,18 @@ public class StmtExecutor implements ProfileWriter {
                 request.setDbId(txnConf.getDbId()).setTxnId(txnConf.getTxnId());
                 request.setLabelIsSet(false);
                 request.setTxnIdIsSet(true);
-                TransactionStatus txnStatus = getWaitingTxnStatus(request);
+
+                TWaitingTxnStatusResult statusResult = getWaitingTxnStatus(request);
+                TransactionStatus txnStatus = TransactionStatus.valueOf(statusResult.getTxnStatusId());
                 if (txnStatus == TransactionStatus.COMMITTED) {
                     throw new AnalysisException("transaction commit successfully, BUT data will be visible later.");
                 } else if (txnStatus != TransactionStatus.VISIBLE) {
-                    throw new AnalysisException("commit failed, rollback.");
+                    String errMsg = "commit failed, rollback.";
+                    if (statusResult.getStatus().isSetErrorMsgs()
+                            && statusResult.getStatus().getErrorMsgs().size() > 0) {
+                        errMsg = String.join(". ", statusResult.getStatus().getErrorMsgs());
+                    }
+                    throw new AnalysisException(errMsg);
                 }
                 StringBuilder sb = new StringBuilder();
                 sb.append("{'label':'").append(context.getTxnEntry().getLabel()).append("', 'status':'")
@@ -1155,13 +1169,19 @@ public class StmtExecutor implements ProfileWriter {
         }
     }
 
+    private static final String NULL_VALUE_FOR_LOAD = "\\N";
+
     public static InternalService.PDataRow getRowStringValue(List<Expr> cols) {
         if (cols.size() == 0) {
             return null;
         }
         InternalService.PDataRow.Builder row = InternalService.PDataRow.newBuilder();
         for (Expr expr : cols) {
-            row.addColBuilder().setValue(expr.getStringValue());
+            if (expr instanceof NullLiteral) {
+                row.addColBuilder().setValue(NULL_VALUE_FOR_LOAD);
+            } else {
+                row.addColBuilder().setValue(expr.getStringValue());
+            }
         }
         return row.build();
     }

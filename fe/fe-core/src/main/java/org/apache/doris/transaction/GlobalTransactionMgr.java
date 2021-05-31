@@ -32,8 +32,10 @@ import org.apache.doris.common.io.Writable;
 import org.apache.doris.common.util.MetaLockUtils;
 import org.apache.doris.persist.BatchRemoveTransactionsOperation;
 import org.apache.doris.persist.EditLog;
+import org.apache.doris.thrift.TStatus;
 import org.apache.doris.thrift.TUniqueId;
 import org.apache.doris.thrift.TWaitingTxnStatusRequest;
+import org.apache.doris.thrift.TWaitingTxnStatusResult;
 import org.apache.doris.transaction.TransactionState.LoadJobSourceType;
 import org.apache.doris.transaction.TransactionState.TxnCoordinator;
 
@@ -507,7 +509,7 @@ public class GlobalTransactionMgr implements Writable {
         dbTransactionMgr.updateDatabaseUsedQuotaData(usedQuotaDataBytes);
     }
 
-    public TransactionStatus getWaitingTxnStatus(TWaitingTxnStatusRequest request) throws AnalysisException, TimeoutException {
+    public TWaitingTxnStatusResult getWaitingTxnStatus(TWaitingTxnStatusRequest request) throws AnalysisException, TimeoutException {
         long dbId = request.getDbId();
         int commitTimeoutSec = Config.commit_timeout_second;
         for (int i = 0; i < commitTimeoutSec; ++i) {
@@ -515,6 +517,8 @@ public class GlobalTransactionMgr implements Writable {
             if (db == null) {
                 throw new AnalysisException("invalid db id: " + dbId);
             }
+            TWaitingTxnStatusResult statusResult = new TWaitingTxnStatusResult();
+            statusResult.status = new TStatus();
             TransactionStatus txnStatus = null;
             if (request.isSetTxnId()) {
                 long txnId = request.getTxnId();
@@ -524,11 +528,16 @@ public class GlobalTransactionMgr implements Writable {
                     throw new AnalysisException("txn does not exist: " + txnId);
                 }
                 txnStatus = txnState.getTransactionStatus();
+                if (!txnState.getReason().trim().isEmpty()) {
+                    statusResult.status.setErrorMsgsIsSet(true);
+                    statusResult.status.addToErrorMsgs(txnState.getReason());
+                }
             } else {
                 txnStatus = getLabelState(dbId, request.getLabel());
             }
             if (txnStatus == TransactionStatus.UNKNOWN || txnStatus.isFinalStatus()) {
-                return txnStatus;
+                statusResult.setTxnStatusId(txnStatus.value());
+                return statusResult;
             }
             try {
                 Thread.sleep(1000L);

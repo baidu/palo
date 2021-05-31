@@ -496,6 +496,7 @@ Status FragmentMgr::exec_plan_fragment(const TExecPlanFragmentParams& params) {
                 -1 /* total_length */,
                 true /* use_proto */);
         stream_load_cxt->body_sink = pipe;
+        stream_load_cxt->max_filter_ratio = params.txn_conf.max_filter_ratio;
 
         RETURN_IF_ERROR(_exec_env->load_stream_mgr()->put(stream_load_cxt->id, pipe));
 

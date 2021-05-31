@@ -92,7 +92,6 @@ import org.apache.doris.thrift.TMiniLoadRequest;
 import org.apache.doris.thrift.TNetworkAddress;
 import org.apache.doris.thrift.TPrivilegeStatus;
 import org.apache.doris.thrift.TReportExecStatusParams;
-import org.apache.doris.thrift.TReportExecStatusParams;
 import org.apache.doris.thrift.TReportExecStatusResult;
 import org.apache.doris.thrift.TReportRequest;
 import org.apache.doris.thrift.TShowVariableRequest;
@@ -112,7 +111,6 @@ import org.apache.doris.transaction.TabletCommitInfo;
 import org.apache.doris.transaction.TransactionState;
 import org.apache.doris.transaction.TransactionState.TxnCoordinator;
 import org.apache.doris.transaction.TransactionState.TxnSourceType;
-import org.apache.doris.transaction.TransactionStatus;
 import org.apache.doris.transaction.TxnCommitAttachment;
 
 import com.google.common.base.Joiner;
@@ -130,7 +128,6 @@ import java.net.UnknownHostException;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-
 import java.util.concurrent.TimeoutException;
 
 // Frontend service used to serve all request for this frontend through
@@ -1047,8 +1044,7 @@ public class FrontendServiceImpl implements FrontendService.Iface {
         TWaitingTxnStatusResult result = new TWaitingTxnStatusResult();
         result.setStatus(new TStatus());
         try {
-            TransactionStatus txnStatus = Catalog.getCurrentGlobalTransactionMgr().getWaitingTxnStatus(request);
-            result.setTxnStatusId(txnStatus.value());
+            result = Catalog.getCurrentGlobalTransactionMgr().getWaitingTxnStatus(request);
             result.status.setStatusCode(TStatusCode.OK);
         } catch (TimeoutException e) {
             result.status.setStatusCode(TStatusCode.INCOMPLETE);

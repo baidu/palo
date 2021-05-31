@@ -255,6 +255,7 @@ struct TTxnParams {
   7: optional i64 txn_id
   8: optional Types.TUniqueId fragment_instance_id
   9: optional i64 db_id
+  10: optional double max_filter_ratio
 }
 
 // ExecPlanFragment

@@ -109,7 +109,8 @@ Status StreamLoadExecutor::execute_plan_fragment(StreamLoadContext* ctx, std::sh
                 ctx->promise.set_value(status);
 
                 if (ctx->need_commit_self && pipe != nullptr) {
-                    if (pipe->closed()) {
+                    if (pipe->closed() || !status.ok()) {
+                        ctx->status = status;
                         this->rollback_txn(ctx);
                     } else {
                         this->commit_txn(ctx);
