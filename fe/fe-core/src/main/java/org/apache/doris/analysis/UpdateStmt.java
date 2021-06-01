@@ -168,10 +168,22 @@ public class UpdateStmt extends DdlStmt {
             }
             // check set expr of target column
             Expr rhs = setExpr.getChild(1);
+            checkLargeIntOverflow(rhs);
             rhs.analyze(analyzer);
             if (lhs.getType() != rhs.getType()) {
                 setExpr.setChild(1, rhs.checkTypeCompatibility(lhs.getType()));
             }
+        }
+    }
+
+    /*
+   The overflow detection of LargeInt needs to be verified again here.
+   The reason is: the first overflow detection(in constructor) cannot filter 2^127.
+   Therefore, a second verification is required here.
+    */
+    private void checkLargeIntOverflow(Expr expr) throws AnalysisException {
+        if (expr instanceof LargeIntLiteral) {
+            expr.analyzeImpl(analyzer);
         }
     }
 
