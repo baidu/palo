@@ -1,187 +1,83 @@
-<!--
-Licensed to the Apache Software Foundation (ASF) under one
-or more contributor license agreements.  See the NOTICE file
-distributed with this work for additional information
-regarding copyright ownership.  The ASF licenses this file
-to you under the Apache License, Version 2.0 (the
-"License"); you may not use this file except in compliance
-with the License.  You may obtain a copy of the License at
+[English](https://github.com/baidu-doris/incubator-doris/blob/master/README_EN.md)
 
-  http://www.apache.org/licenses/LICENSE-2.0
+# Apache Doris 百度镜像库
 
-Unless required by applicable law or agreed to in writing,
-software distributed under the License is distributed on an
-"AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-KIND, either express or implied.  See the License for the
-specific language governing permissions and limitations
-under the License.
--->
+这里是由 Baidu Doris(Palo) 团队维护的 [Apache Doris](https://github.com/apache/incubator-doris) 的镜像库。
 
-# Apache Doris (incubating)
-[![Join the chat at https://gitter.im/apache-doris/Lobby](https://badges.gitter.im/apache-doris/Lobby.svg)](https://gitter.im/apache-doris/Lobby?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+该镜像库仅用于发布基于 Apache Doris 官方 Release 版本的 [3 位迭代版本(tags)](https://semver.org/lang/zh-CN/)。包括快速的 Bug 修复和新功能更新。
 
-Doris is an MPP-based interactive SQL data warehousing for reporting and analysis.
-Its original name was Palo, developed in Baidu. After donated to Apache Software Foundation, it was renamed Doris.
+这些 3 位迭代版本都在百度内部进行过测试和上线，并且所有代码提交均存在与官方仓库中，推荐使用。
 
-## 1. License
+所有 3 位迭代版本请看 [这里](https://github.com/baidu-doris/incubator-doris/tags)
 
-[Apache License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0)
+## 特别声明
 
-## 2. Technology
-Doris mainly integrates the technology of Google Mesa and Apache Impala, and it is based on a column-oriented storage engine and can communicate by MySQL client.
+**Apache、Apache Doris 以及 Doris 名称归属于 Apache 软件基金会。**
 
-## 3. User cases
-Doris not only provides high concurrent low latency point query performance, but also provides high throughput queries of ad-hoc analysis.
+**本仓库代码非 Apache 官方 Release 版本，但与 Apache 版本完全兼容。官方版本请前往 [官方网站](doris.apache.org) 下载。**
 
-Doris not only provides batch data loading, but also provides near real-time mini-batch data loading.
+## 使用说明
 
-Doris also provides high availability, reliability, fault tolerance, and scalability.
+目前 Apache Doris 的 [官方Release版本](https://github.com/apache/incubator-doris/tags) 为：
 
-The simplicity (of developing, deploying and using) and meeting many data serving requirements in single system are the main features of Doris (refer to [Overview](https://github.com/apache/incubator-doris/wiki/Doris-Overview)).
+* 0.9.0
+* 0.10.0
+* 0.11.0
+* 0.12.0
+* 0.13.0
 
-## 4. Compile and install
+本仓库主要基于 2 位官方版本发布 3 位迭代版本。如：
 
-Currently only supports Docker environment and Linux OS, such as Ubuntu and CentOS.
+* 0.9.22-release
+* 0.10.23-release
+* 0.11.44-release
+* 0.12.21-release
+* 0.13.12-release
 
-### 4.1 Compile in Docker environment (Recommended)
+所有 3 位版本可以安全的从对应的官方 2 位版本升级。3 位版本本身也是兼容的，可以安全升级。举例如下：
 
-We offer a docker image as a Doris compilation environment. You can compile Doris from source in it and run the output binaries in other Linux environments.
+* 官方 `0.12.0-rc02` 可以升级至 `0.12.21-release`
+* `0.11.10-release` 可以升级至 `0.11.44-release`
+* `0.11.44-release` 可以升级至 `0.12.21-release`
 
-Firstly, you need to install and start docker service.
+建议在升级 2 位版本之前，先升级到对应的最新的 3 位版本后，再升级 2 位版本。举例如下：
 
-And then you could build Doris as following steps:
+1. 当前使用版本为 `0.11.10-release`，想升级到 0.12 版本。
+2. 首先升级到 `0.11.44-release`，即 0.11 的最新 3 位版本。
+3. 再升级到 `0.12.21-release`，即 0.12 的最新 3 位版本。
 
-#### Step1: Pull the docker image with Doris building environment
+3 位迭代版本也可以安全的和官方 2 位版本升级。如以下的升级序列是安全的
 
-```
-$ docker pull apachedoris/doris-dev:build-env-1.3
-```
+1. `0.11.10-release`  Baidu 库
+2. `0.11.44-release`  Baidu 库
+3. `DORIS-0.12-rc02`  官方库
+4. `0.12.21-release`  Baidu 库
 
-You can check it by listing images, for example:
+## Doris 预编译二进制下载
 
-```
-$ docker images
-REPOSITORY              TAG                 IMAGE ID            CREATED             SIZE
-apachedoris/doris-dev   build-env-1.3       c9665fbee395        5 days ago         3.55GB
-```
-> NOTE: You may have to use different images to compile from source.
->
-> | image version | commit id | release version |
-> |---|---|---|
-> | apachedoris/doris-dev:build-env | before [ff0dd0d](https://github.com/apache/incubator-doris/commit/ff0dd0d2daa588f18b6db56f947e813a56d8ec81) | 0.8.x, 0.9.x |
-> | apachedoris/doris-dev:build-env-1.1 | [ff0dd0d](https://github.com/apache/incubator-doris/commit/ff0dd0d2daa588f18b6db56f947e813a56d8ec81) or later | 0.10.x or 0.11.x |
-> | apachedoris/doris-dev:build-env-1.2 | [1648226](https://github.com/apache/incubator-doris/commit/1648226927c5b4e33f33ce2e12bf0e06369b7f6e) or later | 0.12.x or 0.13 |
-> | apachedoris/doris-dev:build-env-1.3 | [ad67dd3](https://github.com/apache/incubator-doris/commit/ad67dd34a04c1ca960cff38e5b335b30fc7d559f) or later | 0.14.x or later |
+某些情况下，可能用户无法顺利的通过源代码编译的方式得到 Doris 的二进制文件。这里我们提供对应三位版本的预编译二进制下载
 
+* 我们依然**强烈推荐**用户自行通过源码编译产生二进制文件。
+* 这里提供的预编译二进制文件仅在 CentOS 7.3, Intel(R) Xeon(R) Gold 6148 CPU @ 2.40GHz 上执行通过。在其他系统或 CPU 型号下，可能会因为 glibc 版本或者 CPU 支持的指令集不同，而导致程序无法运行。
+* 预编译二进制文件的 FE 部分使用 Oracle JDK 1.8 编译，请确保运行时依然使用 Oracle JDK 1.8 版本。
+* 预编译包含如下组件
+    1. Frontend
+    2. Backend
+    3. Broker
+    4. Frontend plugins jars
+    5. Spark-Doris-Connector jars
 
+### 下载链接
 
+[下载连接](http://palo.baidu.com/docs/%E4%B8%8B%E8%BD%BD%E4%B8%93%E5%8C%BA/%E9%A2%84%E7%BC%96%E8%AF%91%E7%89%88%E6%9C%AC%E4%B8%8B%E8%BD%BD)
 
-#### Step2: Run the Docker image
+## 百度数据仓库 Palo
 
-You can run the image directly:
+百度数据仓库 Palo 提供基于 Doris 的企业级数据仓库托管服务，新用户可0元免费试用3个月。
 
-```
-$ docker run -it apachedoris/doris-dev:build-env-1.3
-```
+**试用、多云支持、私有化部署**等请前往：[https://cloud.baidu.com/product/palo.html](https://cloud.baidu.com/product/palo.html) 详询。
 
-Or if you want to compile the source located in your local host, you can map the local directory to the image by running:
+欢迎关注 ApacheDoris 官方微信公众号获取更多使用案例和技术文章。
 
-```
-$ docker run -it -v /your/local/path/incubator-doris-DORIS-x.x.x-release/:/root/incubator-doris-DORIS-x.x.x-release/ apachedoris/doris-dev:build-env-1.3
-```
-
-#### Step3: Download Doris source
-
-Now you should be attached in docker environment.
-
-You can download Doris source by release package or by git clone in image.
-
-(If you already downloaded the source in your local host and map it to the image in Step2, you can skip this step.)
-
-```
-$ wget https://dist.apache.org/repos/dist/dev/incubator/doris/xxx.tar.gz
-or
-$ git clone https://github.com/apache/incubator-doris.git
-```
-
-#### Step4: Build Doris
-
-Enter Doris source path and build Doris.
-
-```
-$ sh build.sh
-```
-
-After successfully building, it will install binary files in the directory `output/`.
-
-### 4.2 For Linux OS
-
-#### Prerequisites
-
-You must be install following softwares:
-
-```
-GCC 10.2.1+, Oracle JDK 1.8+, Python 2.7+, Apache Maven 3.5+, CMake 3.19.2+, Flex 2.6.0+
-```
-
-Then set them to environment variable PATH and set JAVA_HOME.
-
-If your GCC version is lower than 10.2.1, you can run:
-
-```
-sudo yum install -y devtoolset-10-gcc* 
-```
-
-If devtoolset-10 is not found in current repo. Oracle has already rebuilt the devtoolset-10 packages. You can create
-repo file `CentOS-SCLo-scl.ol.repo` in path `/etc/yum.repos.d/`:
-
-```
-[ol7_software_collections]
-name=Software Collection packages for Oracle Linux 7 ($basearch)
-baseurl=http://yum.oracle.com/repo/OracleLinux/OL7/SoftwareCollections/$basearch/
-gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-oracle
-gpgcheck=1
-enabled=1
-```
-
-and then
-
-```
-wget http://public-yum.oracle.com/RPM-GPG-KEY-oracle-ol7 -O /etc/pki/rpm-gpg/RPM-GPG-KEY-oracle
-rpm --import  /etc/pki/rpm-gpg/RPM-GPG-KEY-*
-sudo yum install -y devtoolset-10-gcc*
-```
-Don't forget to set the path of GCC (e.g `/opt/rh/devtoolset-10/root/usr/bin`) to the environment variable PATH.
-
-#### Compile and install
-
-Run the following script, it will compile thirdparty libraries and build whole Doris.
-
-```
-sh build.sh
-```
-
-After successfully building, it will install binary files in the directory `output/`.
-
-## 5. License Notice
-
-Some of the third-party dependencies' license are not compatible with Apache 2.0 License. So you may have to disable
-some features of Doris to be complied with Apache 2.0 License. Details can be found in `thirdparty/LICENSE.txt`
-
-## 6. Reporting Issues
-
-If you find any bugs, please file a [GitHub issue](https://github.com/apache/incubator-doris/issues).
-
-## 7. Links
-
-* Doris official site - <http://doris.incubator.apache.org>
-* User Manual (GitHub Wiki) - <https://github.com/apache/incubator-doris/wiki>
-* Developer Mailing list - <dev@doris.apache.org>. Mail to <dev-subscribe@doris.apache.org>, follow the reply to subscribe the mail list.
-* Gitter channel - <https://gitter.im/apache-doris/Lobby> - Online chat room with Doris developers.
-* Overview - <https://github.com/apache/incubator-doris/wiki/Doris-Overview>
-* Compile and install - <https://github.com/apache/incubator-doris/wiki/Doris-Install>
-* Getting start - <https://github.com/apache/incubator-doris/wiki/Getting-start>
-* Deploy and Upgrade - <https://github.com/apache/incubator-doris/wiki/Doris-Deploy-%26-Upgrade>
-* User Manual - <https://github.com/apache/incubator-doris/wiki/Doris-Create%2C-Load-and-Delete>
-* FAQs - <https://github.com/apache/incubator-doris/wiki/Doris-FAQ>
+![](https://github.com/baidu-doris/incubator-doris/blob/master/docs/resources/doris-wechat.jpg)
 
