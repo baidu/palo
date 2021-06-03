@@ -114,7 +114,7 @@ public class EditLog {
         journal.deleteJournals(deleteToJournalId);
     }
 
-    public List<Long> getDatabaseNames(boolean onlyMetaDb) {
+    public List<String> getDatabaseNames(boolean onlyMetaDb) {
         return journal.getDatabaseNames(onlyMetaDb);
     }
 

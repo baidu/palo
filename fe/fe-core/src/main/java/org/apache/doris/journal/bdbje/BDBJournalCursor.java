@@ -32,6 +32,7 @@ import org.apache.logging.log4j.Logger;
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class BDBJournalCursor implements JournalCursor {
     private static final Logger LOG = LogManager.getLogger(JournalCursor.class);
@@ -58,17 +59,17 @@ public class BDBJournalCursor implements JournalCursor {
         return cursor;
     }
 
-
     private BDBJournalCursor(BDBEnvironment env, long fromKey, long toKey) throws Exception {
         this.environment = env;
         this.toKey = toKey;
         this.currentKey = fromKey;
-        this.dbNames = env.getDatabaseNames(true);
-        if (dbNames == null) {
+        List<String> dbStrNames = env.getDatabaseNames(true);
+        if (dbStrNames == null) {
             throw new NullPointerException("dbNames is null.");
         }
+        this.dbNames = dbStrNames.stream().map(e -> Long.valueOf(e)).collect(Collectors.toList());
         this.nextDbPositionIndex = 0;
-        
+
         // find the db which may contain the fromKey
         String dbName = null;
         for (long db : dbNames) {

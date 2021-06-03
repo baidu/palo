@@ -66,14 +66,13 @@ public class BDBJEProcDir implements ProcDirInterface  {
                 journalNumMap.put(dbName, debugEnv.getJournalNumber(dbName));
             }
         } else {
-            List<Long> dbNames = Catalog.getCurrentCatalog().getEditLog().getDatabaseNames(false);
+            List<String> dbNames = Catalog.getCurrentCatalog().getEditLog().getDatabaseNames(false);
             DatabaseConfig dbConfig = new DatabaseConfig();
             dbConfig.setTransactional(true);
             dbConfig.setReadOnly(true);
             dbConfig.setAllowCreate(false);
-            for (Long dbName : dbNames) {
-                journalNumMap.put(dbName.toString(),
-                        Catalog.getCurrentCatalog().getEditLog().getCountOfDatabase(dbName.toString(), dbConfig));
+            for (String dbName : dbNames) {
+                journalNumMap.put(dbName, Catalog.getCurrentCatalog().getEditLog().getCountOfDatabase(dbName, dbConfig));
             }
         }
         return journalNumMap;

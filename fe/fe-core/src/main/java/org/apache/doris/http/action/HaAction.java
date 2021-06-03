@@ -132,13 +132,13 @@ public class HaAction extends WebBaseAction {
     }
     
     private void appendDbNames(StringBuilder buffer) {
-        List<Long> names = Catalog.getCurrentCatalog().getEditLog().getDatabaseNames(false);
+        List<String> names = Catalog.getCurrentCatalog().getEditLog().getDatabaseNames(false);
         if (names == null) {
             return;
         }
         
         String msg = "";
-        for (long name : names) {
+        for (String name : names) {
             msg += name + " ";
         }
         buffer.append("<h2>Database names</h2>");

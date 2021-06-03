@@ -152,13 +152,13 @@ public class HaController {
     private void appendDbNames(Map<String, Object> result) {
         Map<String, Object> dbs = new HashMap<>();
 
-        List<Long> names = Catalog.getCurrentCatalog().getEditLog().getDatabaseNames(false);
+        List<String> names = Catalog.getCurrentCatalog().getEditLog().getDatabaseNames(false);
         if (names == null) {
             return;
         }
 
         String msg = "";
-        for (long name : names) {
+        for (String name : names) {
             msg += name + " ";
         }
         List<Map<String, Object>> list = new ArrayList<>();

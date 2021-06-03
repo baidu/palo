@@ -192,24 +192,24 @@ public class BDBJEJournal implements Journal {
 
     @Override
     public JournalEntity read(long journalId) {
-        List<Long> dbNames = bdbEnvironment.getDatabaseNames(true);
+        List<String> dbNames = bdbEnvironment.getDatabaseNames(true);
         if (dbNames == null) {
             return null;
         }
         String dbName = null;
-        for (long db : dbNames) {
-            if (journalId >= db) {
-                dbName = Long.toString(db);
+        for (String db : dbNames) {
+            if (journalId >= Long.valueOf(db)) {
+                dbName = db;
                 continue;
             } else {
                 break;
             }
         }
-        
+
         if (dbName == null) {
             return null;
         }
-        
+
         JournalEntity ret = null;
         Long key = new Long(journalId);
         DatabaseEntry theKey = new DatabaseEntry();
@@ -253,7 +253,7 @@ public class BDBJEJournal implements Journal {
         if (bdbEnvironment == null) {
             return ret;
         }
-        List<Long> dbNames = bdbEnvironment.getDatabaseNames(true);
+        List<String> dbNames = bdbEnvironment.getDatabaseNames(true);
         if (dbNames == null) {
             return ret;
         }
@@ -263,7 +263,7 @@ public class BDBJEJournal implements Journal {
         
         int index = dbNames.size() - 1;
         String dbName = dbNames.get(index).toString();
-        long dbNumberName = dbNames.get(index);
+        long dbNumberName = Long.valueOf(dbNames.get(index));
         Database database = bdbEnvironment.openDatabase(dbName);
         ret = dbNumberName + database.count() - 1;
         
@@ -276,22 +276,22 @@ public class BDBJEJournal implements Journal {
         if (bdbEnvironment == null) {
             return ret;
         }
-        List<Long> dbNames = bdbEnvironment.getDatabaseNames(true);
+        List<String> dbNames = bdbEnvironment.getDatabaseNames(true);
         if (dbNames == null) {
             return ret;
         }
         if (dbNames.size() == 0) {
             return ret;
         }
-        
-        String dbName = dbNames.get(0).toString();
+
+        String dbName = dbNames.get(0);
         Database database = bdbEnvironment.openDatabase(dbName);
         // The database is empty
         if (database.count() == 0) {
             return ret;
         }
-        
-        return dbNames.get(0);
+
+        return Long.valueOf(dbName);
     }
 
     @Override
@@ -321,7 +321,7 @@ public class BDBJEJournal implements Journal {
         
         // Open a new journal database or get last existing one as current journal database
         Pair<String, Integer> helperNode = Catalog.getCurrentCatalog().getHelperNode();
-        List<Long> dbNames = null;
+        List<String> dbNames = null;
         for (int i = 0; i < RETRY_TIME; i++) {
             try {
                 dbNames = bdbEnvironment.getDatabaseNames(true);
@@ -342,7 +342,7 @@ public class BDBJEJournal implements Journal {
                     currentJournalDB = bdbEnvironment.openDatabase(dbName);
                 } else {
                     // get last database as current journal database
-                    currentJournalDB = bdbEnvironment.openDatabase(dbNames.get(dbNames.size() - 1).toString());
+                    currentJournalDB = bdbEnvironment.openDatabase(dbNames.get(dbNames.size() - 1));
                 }
                 
                 // set next journal id
@@ -366,22 +366,22 @@ public class BDBJEJournal implements Journal {
     
     @Override
     public void deleteJournals(long deleteToJournalId) {
-        List<Long> dbNames = bdbEnvironment.getDatabaseNames(true);
+        List<String> dbNames = bdbEnvironment.getDatabaseNames(true);
         if (dbNames == null) {
             LOG.info("delete database names is null.");
             return;
         }
         
         String msg = "existing database names: ";
-        for (long name : dbNames) {
+        for (String name : dbNames) {
             msg += name + " ";
         }
         msg += ", deleteToJournalId is " + deleteToJournalId;
         LOG.info(msg);
         
         for (int i = 1; i < dbNames.size(); i++) {
-            if (deleteToJournalId >= dbNames.get(i)) {
-                long name = dbNames.get(i - 1);
+            if (deleteToJournalId >= Long.valueOf(dbNames.get(i))) {
+                long name = Long.valueOf(dbNames.get(i - 1));
                 String stringName = Long.toString(name);
                 LOG.info("delete database name {}", stringName);
                 bdbEnvironment.removeDatabase(stringName);
@@ -395,27 +395,27 @@ public class BDBJEJournal implements Journal {
     
     @Override
     public long getFinalizedJournalId() {
-        List<Long> dbNames = bdbEnvironment.getDatabaseNames(true);
+        List<String> dbNames = bdbEnvironment.getDatabaseNames(true);
         if (dbNames == null) {
             LOG.error("database name is null.");
             return 0;
         }
-        
+
         String msg = "database names: ";
-        for (long name : dbNames) {
+        for (String name : dbNames) {
             msg += name + " ";
         }
         LOG.info(msg);
-        
+
         if (dbNames.size() < 2) {
             return 0;
         }
-        
-        return dbNames.get(dbNames.size() - 1) - 1;
+
+        return Long.valueOf(dbNames.get(dbNames.size() - 1)) - 1;
     }
 
     @Override
-    public List<Long> getDatabaseNames(boolean onlyMetaDb) {
+    public List<String> getDatabaseNames(boolean onlyMetaDb) {
         if (bdbEnvironment == null) {
             return null;
         }

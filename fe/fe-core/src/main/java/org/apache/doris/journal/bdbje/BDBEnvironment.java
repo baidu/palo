@@ -24,6 +24,7 @@ import org.apache.doris.ha.BDBStateChangeListener;
 import org.apache.doris.ha.HAProtocol;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Lists;
 import com.sleepycat.je.Database;
 import com.sleepycat.je.DatabaseConfig;
 import com.sleepycat.je.DatabaseException;
@@ -319,8 +320,8 @@ public class BDBEnvironment {
     }
 
     // get journal db names and sort the names
-    public List<Long> getDatabaseNames(boolean onlyMetaDb) {
-        List<Long> ret = new ArrayList<Long>();
+    public List<String> getDatabaseNames(boolean onlyMetaDb) {
+        List<String> ret = Lists.newArrayList();
         List<String> names = null;
         int tried = 0;
         while (true) {
@@ -349,11 +350,15 @@ public class BDBEnvironment {
         
         if (names != null) {
             for (String name : names) {
-                if (!onlyMetaDb || StringUtils.isNumeric(name)) {
-                    ret.add(Long.parseLong(name));
+                if (onlyMetaDb) {
+                    if (StringUtils.isNumeric(name)) {
+                        ret.add(name);
+                    } else {
+                        // "epochDB" and "metricDB" will throw this exception. No need to deal with it.
+                        LOG.debug("get database names, skipped {}", name);
+                    }
                 } else {
-                    // "epochDB" and "metricDB" will throw this exception. No need to deal with it.
-                    LOG.debug("get database names, skipped {}", name);
+                    ret.add(name);
                 }
             }
         }

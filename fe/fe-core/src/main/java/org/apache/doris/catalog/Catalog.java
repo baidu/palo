@@ -1238,11 +1238,11 @@ public class Catalog {
         MetricRepo.init();
 
         // init bdbje metric handler
-        if(Config.enable_monitor && bdbjeMetricHandler == null) {
+        if (bdbjeMetricHandler == null) {
             bdbjeMetricHandler = new BDBJEMetricHandler(bdbEnvironment);
         }
 
-        if (Config.enable_monitor && metricCollector == null) {
+        if (metricCollector == null) {
             metricCollector = new MetricCollector(bdbjeMetricHandler);
             metricCollector.startWriteMetric();
         }
@@ -1382,8 +1382,8 @@ public class Catalog {
 
         MetricRepo.init();
 
-        //init bdbje metric handler
-        if(Config.enable_monitor && bdbjeMetricHandler == null) {
+        // init bdbje metric handler
+        if (bdbjeMetricHandler == null) {
             bdbjeMetricHandler = new BDBJEMetricHandler(bdbEnvironment);
         }
 

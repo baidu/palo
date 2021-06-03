@@ -183,7 +183,7 @@ public class LocalJournal implements Journal {
     }
 
     @Override
-    public List<Long> getDatabaseNames(boolean onlyMetaDb) {
+    public List<String> getDatabaseNames(boolean onlyMetaDb) {
         throw new RuntimeException("Not Support");
     }
 

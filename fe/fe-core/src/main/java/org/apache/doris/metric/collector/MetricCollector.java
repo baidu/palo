@@ -94,6 +94,9 @@ public class MetricCollector {
 
     // get metric data from each node and write it to the bdbje.
     private void writeMetric(long timestamp) {
+        if (!Config.enable_monitor) {
+            return;
+        }
         List<Frontend> frontends = Catalog.getCurrentCatalog().getFrontends(null);
         for (Frontend frontend : frontends) {
             if (frontend.isAlive()) {
