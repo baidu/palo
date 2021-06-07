@@ -196,7 +196,7 @@ Status HashJoinNode::construct_hash_table(RuntimeState* state) {
     RETURN_IF_ERROR(child(1)->open(state));
 
     SCOPED_TIMER(_build_timer);
-    Defer defer{[&] {
+    Defer defer {[&] {
         COUNTER_SET(_build_rows_counter, _hash_tbl->size());
         COUNTER_SET(_build_buckets_counter, _hash_tbl->num_buckets());
         COUNTER_SET(_hash_tbl_load_factor_counter, _hash_tbl->load_factor());
@@ -255,13 +255,8 @@ Status HashJoinNode::open(RuntimeState* state) {
                                                   _hash_tbl->size()));
         {
             SCOPED_TIMER(_push_compute_timer);
-            HashTable::Iterator iter = _hash_tbl->begin();
-
-            while (iter.has_next()) {
-                TupleRow* row = iter.get_row();
-                runtime_filter_slots.insert(row);
-                iter.next<false>();
-            }
+            auto func = [&](TupleRow* row) { runtime_filter_slots.insert(row); };
+            _hash_tbl->for_each_row(func);
         }
         COUNTER_UPDATE(_build_timer, _push_compute_timer->value());
         {
@@ -562,7 +557,7 @@ Status HashJoinNode::left_join_get_next(RuntimeState* state, RowBatch* out_batch
     *eos = _eos;
 
     ScopedTimer<MonotonicStopWatch> probe_timer(_probe_timer);
-    Defer defer{[&] { COUNTER_SET(_rows_returned_counter, _num_rows_returned); }};
+    Defer defer {[&] { COUNTER_SET(_rows_returned_counter, _num_rows_returned); }};
 
     while (!_eos) {
         // Compute max rows that should be added to out_batch

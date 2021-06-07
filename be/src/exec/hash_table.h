@@ -237,6 +237,27 @@ public:
         uint32_t _scan_hash;
     };
 
+    template <class Func>
+    void for_each_row(Func&& func) {
+        size_t sz = _alloc_list.size();
+        DCHECK_GT(sz, 0);
+        for (size_t i = 0; i < sz - 1; ++i) {
+            uint8_t* start = _alloc_list[i];
+            uint8_t* end = _end_list[i];
+            while (start < end) {
+                auto node = reinterpret_cast<Node*>(start);
+                func(node->data());
+                start += _node_byte_size;
+            }
+        }
+        uint8_t* last_st = _alloc_list[sz - 1];
+        for (size_t i = 0; i < _current_used; ++i) {
+            auto node = reinterpret_cast<Node*>(last_st);
+            func(node->data());
+            last_st += _node_byte_size;
+        }
+    }
+
 private:
     friend class Iterator;
     friend class HashTableTest;
@@ -394,6 +415,8 @@ private:
     uint8_t* _expr_value_null_bits;
     // node buffer list
     std::vector<uint8_t*> _alloc_list;
+    // node buffer end pointer
+    std::vector<uint8_t*> _end_list;
 };
 
 } // namespace doris
