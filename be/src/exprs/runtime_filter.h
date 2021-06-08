@@ -175,9 +175,11 @@ public:
     Status merge_from(const RuntimePredicateWrapper* wrapper);
 
     static Status create_wrapper(const MergeRuntimeFilterParams* param, MemTracker* tracker,
-                                 ObjectPool* pool, RuntimePredicateWrapper** wrapper);
+                                 ObjectPool* pool,
+                                 std::unique_ptr<RuntimePredicateWrapper>* wrapper);
     static Status create_wrapper(const UpdateRuntimeFilterParams* param, MemTracker* tracker,
-                                 ObjectPool* pool, RuntimePredicateWrapper** wrapper);
+                                 ObjectPool* pool,
+                                 std::unique_ptr<RuntimePredicateWrapper>* wrapper);
 
     Status update_filter(const UpdateRuntimeFilterParams* param);
 
@@ -205,7 +207,7 @@ protected:
 
     template <class T>
     static Status _create_wrapper(const T* param, MemTracker* tracker, ObjectPool* pool,
-                                  RuntimePredicateWrapper** wrapper);
+                                  std::unique_ptr<RuntimePredicateWrapper>* wrapper);
 
 protected:
     RuntimeState* _state;
@@ -264,6 +266,18 @@ protected:
     RuntimeProfile::Counter* _await_time_cost = nullptr;
     RuntimeProfile::Counter* _effect_time_cost = nullptr;
     std::unique_ptr<ScopedTimer<MonotonicStopWatch>> _effect_timer;
+};
+
+// avoid expose RuntimePredicateWrapper
+class RuntimeFilterWrapperHolder {
+public:
+    using WrapperPtr = std::unique_ptr<RuntimePredicateWrapper>;
+    RuntimeFilterWrapperHolder();
+    ~RuntimeFilterWrapperHolder();
+    WrapperPtr* getHandle() { return &_wrapper; }
+
+private:
+    WrapperPtr _wrapper;
 };
 
 /// this class used in a hash join node

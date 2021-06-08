@@ -51,7 +51,7 @@ public:
     // assign minmax data
     virtual Status assign(void* min_data, void* max_data) = 0;
     // merge from other minmax_func
-    virtual Status merge(MinMaxFuncBase* minmax_func) = 0;
+    virtual Status merge(MinMaxFuncBase* minmax_func, ObjectPool* pool) = 0;
     // create min-max filter function
     static MinMaxFuncBase* create_minmax_filter(PrimitiveType type);
 };
@@ -85,15 +85,33 @@ public:
         return val_data >= _min && val_data <= _max;
     }
 
-    Status merge(MinMaxFuncBase* minmax_func) {
-        MinMaxNumFunc<T>* other_minmax = static_cast<MinMaxNumFunc<T>*>(minmax_func);
-        if (other_minmax->_min < _min) {
-            _min = other_minmax->_min;
+    Status merge(MinMaxFuncBase* minmax_func, ObjectPool* pool) {
+        if constexpr (std::is_same_v<T, StringValue>) {
+            MinMaxNumFunc<T>* other_minmax = static_cast<MinMaxNumFunc<T>*>(minmax_func);
+
+            if (other_minmax->_min < _min) {
+                auto& other_min = other_minmax->_min;
+                auto str = pool->add(new std::string(other_min.ptr, other_min.len));
+                _min.ptr = str->data();
+                _min.len = str->length();
+            }
+            if (other_minmax->_max > _max) {
+                auto& other_max = other_minmax->_max;
+                auto str = pool->add(new std::string(other_max.ptr, other_max.len));
+                _max.ptr = str->data();
+                _max.len = str->length();
+            }
+
+        } else {
+            MinMaxNumFunc<T>* other_minmax = static_cast<MinMaxNumFunc<T>*>(minmax_func);
+            if (other_minmax->_min < _min) {
+                _min = other_minmax->_min;
+            }
+            if (other_minmax->_max > _max) {
+                _max = other_minmax->_max;
+            }
         }
-        if (other_minmax->_max > _max) {
-            _max = other_minmax->_max;
-        }
-        _empty = true;
+
         return Status::OK();
     }
 
@@ -563,7 +581,7 @@ public:
             return Status::InternalError("in filter should't apply in shuffle join");
         }
         case RuntimeFilterType::MINMAX_FILTER: {
-            _minmax_func->merge(wrapper->_minmax_func.get());
+            _minmax_func->merge(wrapper->_minmax_func.get(), _pool);
             break;
         }
         case RuntimeFilterType::BLOOM_FILTER: {
@@ -867,20 +885,22 @@ Status IRuntimeFilter::serialize(PPublishFilterRequest* request, void** data, in
 }
 
 Status IRuntimeFilter::create_wrapper(const MergeRuntimeFilterParams* param, MemTracker* tracker,
-                                      ObjectPool* pool, RuntimePredicateWrapper** wrapper) {
+                                      ObjectPool* pool,
+                                      std::unique_ptr<RuntimePredicateWrapper>* wrapper) {
     return _create_wrapper(param, tracker, pool, wrapper);
 }
 
 Status IRuntimeFilter::create_wrapper(const UpdateRuntimeFilterParams* param, MemTracker* tracker,
-                                      ObjectPool* pool, RuntimePredicateWrapper** wrapper) {
+                                      ObjectPool* pool,
+                                      std::unique_ptr<RuntimePredicateWrapper>* wrapper) {
     return _create_wrapper(param, tracker, pool, wrapper);
 }
 
 template <class T>
 Status IRuntimeFilter::_create_wrapper(const T* param, MemTracker* tracker, ObjectPool* pool,
-                                       RuntimePredicateWrapper** wrapper) {
+                                       std::unique_ptr<RuntimePredicateWrapper>* wrapper) {
     int filter_type = param->request->filter_type();
-    *wrapper = pool->add(new RuntimePredicateWrapper(tracker, pool, get_type(filter_type)));
+    wrapper->reset(new RuntimePredicateWrapper(tracker, pool, get_type(filter_type)));
 
     switch (filter_type) {
     case PFilterType::BLOOM_FILTER: {
@@ -1029,9 +1049,9 @@ void IRuntimeFilter::to_protobuf(PMinMaxFilter* filter) {
 }
 
 Status IRuntimeFilter::update_filter(const UpdateRuntimeFilterParams* param) {
-    RuntimePredicateWrapper* wrapper = nullptr;
+    std::unique_ptr<RuntimePredicateWrapper> wrapper;
     RETURN_IF_ERROR(IRuntimeFilter::create_wrapper(param, _mem_tracker, _pool, &wrapper));
-    RETURN_IF_ERROR(_wrapper->merge(wrapper));
+    RETURN_IF_ERROR(_wrapper->merge(wrapper.get()));
     this->signal();
     return Status::OK();
 }
@@ -1041,6 +1061,9 @@ Status IRuntimeFilter::consumer_close() {
     Expr::close(_push_down_ctxs, _state);
     return Status::OK();
 }
+
+RuntimeFilterWrapperHolder::RuntimeFilterWrapperHolder() = default;
+RuntimeFilterWrapperHolder::~RuntimeFilterWrapperHolder() = default;
 
 Status RuntimeFilterSlots::init(RuntimeState* state, ObjectPool* pool, MemTracker* tracker,
                                 int64_t hash_table_size) {

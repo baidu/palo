@@ -168,8 +168,7 @@ Status RuntimeFilterMergeControllerEntity::merge(const PMergeFilterRequest* requ
     {
         std::lock_guard<std::mutex> guard(_filter_map_mutex);
         auto iter = _filter_map.find(std::to_string(request->filter_id()));
-        LOG(INFO) << "recv filter id:" << request->filter_id() << " "
-                  << request->ShortDebugString();
+        VLOG_ROW << "recv filter id:" << request->filter_id() << " " << request->ShortDebugString();
         if (iter == _filter_map.end()) {
             LOG(WARNING) << "unknown filter id:" << std::to_string(request->filter_id());
             return Status::InvalidArgument("unknown filter id");
@@ -180,9 +179,10 @@ Status RuntimeFilterMergeControllerEntity::merge(const PMergeFilterRequest* requ
         params.request = request;
         std::shared_ptr<MemTracker> tracker = iter->second->tracker;
         ObjectPool* pool = iter->second->pool.get();
-        RuntimePredicateWrapper* wrapper = nullptr;
-        RETURN_IF_ERROR(IRuntimeFilter::create_wrapper(&params, tracker.get(), pool, &wrapper));
-        RETURN_IF_ERROR(cntVal->filter->merge_from(wrapper));
+        RuntimeFilterWrapperHolder holder;
+        RETURN_IF_ERROR(
+                IRuntimeFilter::create_wrapper(&params, tracker.get(), pool, holder.getHandle()));
+        RETURN_IF_ERROR(cntVal->filter->merge_from(holder.getHandle()->get()));
         cntVal->arrive_id.insert(UniqueId(request->fragment_id()).to_string());
         merged_size = cntVal->arrive_id.size();
         // TODO: avoid log when we had acquired a lock
