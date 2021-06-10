@@ -35,7 +35,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 public class BDBJournalCursor implements JournalCursor {
-    private static final Logger LOG = LogManager.getLogger(JournalCursor.class);
+    private static final Logger LOG = LogManager.getLogger(BDBJournalCursor.class);
     
     private long toKey;
     private long currentKey;
