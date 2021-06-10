@@ -342,7 +342,6 @@ public class ConnectProcessor {
                 break;
             case COM_QUERY:
                 handleQuery();
-                ctx.setStartTime();
                 break;
             case COM_FIELD_LIST:
                 handleFieldList();
