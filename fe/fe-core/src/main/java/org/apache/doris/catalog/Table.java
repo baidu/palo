@@ -21,17 +21,18 @@ import org.apache.doris.analysis.CreateTableStmt;
 import org.apache.doris.common.FeMetaVersion;
 import org.apache.doris.common.io.Text;
 import org.apache.doris.common.io.Writable;
+import org.apache.doris.common.util.QueryableReentrantReadWriteLock;
 import org.apache.doris.common.util.Util;
 import org.apache.doris.thrift.TTableDescriptor;
-
-import org.apache.commons.lang.NotImplementedException;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+
+import org.apache.commons.lang.NotImplementedException;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.io.DataInput;
 import java.io.DataOutput;
@@ -40,7 +41,6 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.Collectors;
 
 /**
@@ -69,7 +69,7 @@ public class Table extends MetaObject implements Writable {
     protected volatile String name;
     protected TableType type;
     protected long createTime;
-    protected ReentrantReadWriteLock rwLock;
+    protected QueryableReentrantReadWriteLock rwLock;
 
     /*
      *  fullSchema and nameToColumn should contains all columns, both visible and shadow.
@@ -109,7 +109,7 @@ public class Table extends MetaObject implements Writable {
         this.type = type;
         this.fullSchema = Lists.newArrayList();
         this.nameToColumn = Maps.newTreeMap(String.CASE_INSENSITIVE_ORDER);
-        this.rwLock = new ReentrantReadWriteLock(true);
+        this.rwLock = new QueryableReentrantReadWriteLock(true);
     }
 
     public Table(long id, String tableName, TableType type, List<Column> fullSchema) {
@@ -129,7 +129,7 @@ public class Table extends MetaObject implements Writable {
             // Only view in with-clause have null base
             Preconditions.checkArgument(type == TableType.VIEW, "Table has no columns");
         }
-        this.rwLock = new ReentrantReadWriteLock();
+        this.rwLock = new QueryableReentrantReadWriteLock(true);
         this.createTime = Instant.now().getEpochSecond();
     }
 
@@ -156,7 +156,13 @@ public class Table extends MetaObject implements Writable {
 
     public boolean tryWriteLock(long timeout, TimeUnit unit) {
         try {
-           return this.rwLock.writeLock().tryLock(timeout, unit);
+            boolean ret = this.rwLock.writeLock().tryLock(timeout, unit);
+            if (LOG.isDebugEnabled() && !ret) {
+                Thread owner = this.rwLock.getOwner();
+                LOG.debug("failed to get table {} write lock after {} {}. owner thread: {}",
+                        this.id, timeout, unit.toString(), owner == null ? "null" : owner.getId());
+            }
+            return ret;
         } catch (InterruptedException e) {
             LOG.warn("failed to try write lock at table[" + name + "]", e);
             return false;
