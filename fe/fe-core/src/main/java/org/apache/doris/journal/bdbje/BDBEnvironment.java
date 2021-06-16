@@ -53,6 +53,7 @@ import java.io.File;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -319,7 +320,8 @@ public class BDBEnvironment {
         }
     }
 
-    // get journal db names and sort the names
+    // get journal db names.
+    // if onlyMetaDb is true, it will sort the dbNames in ascending order
     public List<String> getDatabaseNames(boolean onlyMetaDb) {
         List<String> ret = Lists.newArrayList();
         List<String> names = null;
@@ -363,7 +365,9 @@ public class BDBEnvironment {
             }
         }
         
-        Collections.sort(ret);
+        if (onlyMetaDb) {
+            Collections.sort(ret, Comparator.comparing(Long::valueOf));
+        }
         return ret;
     }
 
