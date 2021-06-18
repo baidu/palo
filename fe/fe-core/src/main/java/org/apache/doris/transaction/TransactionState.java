@@ -195,6 +195,16 @@ public class TransactionState implements Writable {
     private TransactionStatus preStatus = null;
     
     private long callbackId = -1;
+    // In the beforeStateTransform() phase, we will get the callback object through the callbackId,
+    // and if we get it, we will save it in this variable.
+    // The main function of this variable is to retain a reference to this callback object.
+    // In order to prevent in the afterStateTransform() phase the callback object may have been removed
+    // from the CallbackFactory, resulting in the inability to obtain the object, causing some bugs
+    // such as
+    // 1. the write lock of callback object has been called in beforeStateTransform()
+    // 2. callback object has been removed from CallbackFactory
+    // 3. in afterStateTransform(), callback object can not be found, so the write lock can not be released.
+    private TxnStateChangeCallback callback = null;
     private long timeoutMs = Config.stream_load_default_timeout_second;
     private String authCode = "";
 
@@ -378,8 +388,7 @@ public class TransactionState implements Writable {
 
     public void beforeStateTransform(TransactionStatus transactionStatus) throws TransactionException {
         // before status changed
-        TxnStateChangeCallback callback = Catalog.getCurrentGlobalTransactionMgr()
-                .getCallbackFactory().getCallback(callbackId);
+        callback = Catalog.getCurrentGlobalTransactionMgr().getCallbackFactory().getCallback(callbackId);
         if (callback != null) {
             switch (transactionStatus) {
                 case ABORTED:
@@ -410,8 +419,9 @@ public class TransactionState implements Writable {
     public void afterStateTransform(TransactionStatus transactionStatus, boolean txnOperated, String txnStatusChangeReason)
             throws UserException {
         // after status changed
-        TxnStateChangeCallback callback = Catalog.getCurrentGlobalTransactionMgr()
-                .getCallbackFactory().getCallback(callbackId);
+        if (callback == null) {
+            callback = Catalog.getCurrentGlobalTransactionMgr().getCallbackFactory().getCallback(callbackId);
+        }
         if (callback != null) {
             switch (transactionStatus) {
                 case ABORTED:
