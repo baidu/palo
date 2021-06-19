@@ -43,11 +43,11 @@ import org.apache.doris.thrift.TNetworkAddress;
 import org.apache.doris.thrift.TPrimitiveType;
 import org.apache.doris.thrift.TQueryGlobals;
 
-import com.google.common.base.Preconditions;
-import com.google.common.base.Predicates;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+import com.google.common.base.Preconditions;
+import com.google.common.base.Predicates;
 
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
@@ -314,11 +314,12 @@ public class FoldConstantsRule implements ExprRewriteRule {
         if (expr.getId().toString().equals(key)) {
             return literalExpr;
         }
-        for (Expr child : expr.getChildren()){
+        // ATTN: make sure the child order of expr keep unchanged
+        for (int i = 0; i < expr.getChildren().size(); i++) {
+            Expr child = expr.getChild(i);
             if (literalExpr.equals(replaceExpr(child, key, literalExpr))) {
                 literalExpr.setId(child.getId());
-                expr.getChildren().remove(child);
-                expr.getChildren().add(literalExpr);
+                expr.setChild(i, literalExpr);
                 break;
             }
         }
