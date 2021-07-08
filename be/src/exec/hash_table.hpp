@@ -54,6 +54,8 @@ inline bool HashTable::emplace_key(TupleRow* row, TupleRow** dest_addr) {
     if (will_insert) {
         if (_num_filled_buckets > _num_buckets_till_resize) {
             resize_buckets(_num_buckets * 2);
+            // real bucket_id will modify after resize buckets
+            bucket_idx = hash & (_num_buckets - 1);
         }
         if (_current_used == _current_capacity) {
             grow_node_array();

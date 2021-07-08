@@ -365,6 +365,11 @@ public class ConsistencyChecker extends MasterDaemon {
     public void replayFinishConsistencyCheck(ConsistencyCheckInfo info, Catalog catalog) {
         Database db = catalog.getDb(info.getDbId());
         OlapTable table = (OlapTable) db.getTable(info.getTableId());
+        if (table == null) {
+            LOG.warn("table {} does not exist when replaying finish consistency check. db: {}",
+                    info.getTableId(), info.getDbId());
+            return;
+        }
         table.writeLock();
         try {
             Partition partition = table.getPartition(info.getPartitionId());

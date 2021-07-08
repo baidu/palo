@@ -45,7 +45,7 @@ public class ReadEnvironment implements ApplicationContextAware {
 
     public void reinitializeLoggingSystem() {
         ConfigurableEnvironment environment = (ConfigurableEnvironment) this.applicationContext.getEnvironment();
-        File file = new File(Log4jConfig.confDir + SpringLog4j2Config.SPRING_LOG_XML_FILE);
+        File file = new File(Log4jConfig.customConfDir + SpringLog4j2Config.SPRING_LOG_XML_FILE);
         String logConfig = file.getAbsolutePath();
         LogFile logFile = LogFile.get(environment);
         LoggingSystem system = LoggingSystem.get(LoggingSystem.class.getClassLoader());
