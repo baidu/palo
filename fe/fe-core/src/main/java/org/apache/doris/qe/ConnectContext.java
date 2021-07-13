@@ -110,6 +110,9 @@ public class ConnectContext {
 
     protected QueryDetail queryDetail;
 
+    // If set to true, the nondeterministic function will not be rewrote to constant.
+    private boolean notEvalNondeterministicFunction = false;
+
     public static ConnectContext get() {
         return threadLocalInfo.get();
     }
@@ -124,6 +127,14 @@ public class ConnectContext {
 
     public boolean isSend() {
         return this.isSend;
+    }
+
+    public void setNotEvalNondeterministicFunction(boolean notEvalNondeterministicFunction) {
+        this.notEvalNondeterministicFunction = notEvalNondeterministicFunction;
+    }
+
+    public boolean notEvalNondeterministicFunction() {
+        return notEvalNondeterministicFunction;
     }
 
     public ConnectContext() {
@@ -463,7 +474,7 @@ public class ConnectContext {
         }
         return threadInfo;
     }
-
+ 
     public class ThreadInfo {
         public List<String>  toRow(long nowMs) {
             List<String> row = Lists.newArrayList();
