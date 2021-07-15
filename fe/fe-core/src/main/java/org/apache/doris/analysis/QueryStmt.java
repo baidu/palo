@@ -490,9 +490,9 @@ public abstract class QueryStmt extends StatementBase {
         return false;
     }
 
-    public void getWithClauseTableRefs(List<TableRef> tblRefs, Set<String> parentViewNameSet) {
+    public void getWithClauseTableRefs(Analyzer analyzer, List<TableRef> tblRefs, Set<String> parentViewNameSet) {
         if (withClause_ != null) {
-            withClause_.getTableRefs(tblRefs, parentViewNameSet);
+            withClause_.getTableRefs(analyzer, tblRefs, parentViewNameSet);
         }
     }
 
@@ -507,7 +507,7 @@ public abstract class QueryStmt extends StatementBase {
 
     // get TableRefs in this query, including physical TableRefs of this statement and
     // nested statements of inline views and with_Clause.
-    public abstract void getTableRefs(List<TableRef> tblRefs, Set<String> parentViewNameSet);
+    public abstract void getTableRefs(Analyzer analyzer, List<TableRef> tblRefs, Set<String> parentViewNameSet);
 
     /**
      * UnionStmt and SelectStmt have different implementations.

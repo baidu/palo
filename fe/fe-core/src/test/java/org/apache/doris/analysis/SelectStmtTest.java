@@ -574,7 +574,7 @@ public class SelectStmtTest {
         QueryStmt stmt = (QueryStmt) UtFrameUtils.parseAndAnalyzeStmt(sql, ctx);
         List<TableRef> tblRefs = Lists.newArrayList();
         Set<String> parentViewNameSet = Sets.newHashSet();
-        stmt.getTableRefs(tblRefs, parentViewNameSet);
+        stmt.getTableRefs(new Analyzer(ctx.getCatalog(), ctx), tblRefs, parentViewNameSet);
 
         Assert.assertEquals(2, tblRefs.size());
         Assert.assertEquals("table1", tblRefs.get(0).getName().getTbl());
