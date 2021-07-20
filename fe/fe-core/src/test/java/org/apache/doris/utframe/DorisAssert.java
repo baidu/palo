@@ -96,6 +96,8 @@ public class DorisAssert {
     public DorisAssert dropTableForce(String tableName) throws Exception {
         DropTableStmt dropTableStmt =
                 (DropTableStmt) UtFrameUtils.parseAndAnalyzeStmt("drop table " + tableName + " force;", ctx);
+        Catalog.getCurrentCatalog().dropTable(dropTableStmt);
+        return this;
     }
 
     public DorisAssert withView(String sql) throws Exception {
