@@ -19,23 +19,35 @@ package org.apache.doris.metric.collector;
 
 import com.clearspring.analytics.util.Lists;
 import com.google.common.collect.Maps;
+
 import org.apache.doris.catalog.Catalog;
 import org.apache.doris.common.Config;
+import org.apache.doris.common.proc.ProcNodeInterface;
+import org.apache.doris.common.proc.ProcResult;
+import org.apache.doris.common.proc.ProcService;
+import org.apache.doris.common.proc.StatisticProcDir;
 import org.apache.doris.common.util.NetUtils;
 import org.apache.doris.system.Backend;
 import org.apache.doris.system.Frontend;
 import org.apache.doris.system.SystemInfoService;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * This class provides monitoring data of cluster information.
  */
 public class ClusterInfo {
+    private static final Logger LOG = LogManager.getLogger(ClusterInfo.class);
+
     public enum ClusterInfoType {
         NODE_NUM,
         DISKS_CAPACITY,
+        STATISTIC,
         FE_LIST,
         BE_LIST
     }
@@ -46,6 +58,8 @@ public class ClusterInfo {
                 return nodeNum();
             case DISKS_CAPACITY:
                 return clusterCapacity();
+            case STATISTIC:
+                return fetchStatistic();
             case BE_LIST:
                 return beList();
             case FE_LIST:
@@ -94,6 +108,35 @@ public class ClusterInfo {
         result.put(BDBJEMetricUtils.BE_DISKS_TOTAL_CAPACITY,
                 Catalog.getCurrentCatalog().getBDBJEMetricHandler().readLong(BDBJEMetricUtils.BE_DISKS_TOTAL_CAPACITY));
         return result;
+    }
+
+    /*
+     * {
+     *      "unhealthy_tablet_num": value
+     * }
+     */
+    private static Map<String, Long> fetchStatistic() {
+        Map<String, Long> statistics = Maps.newHashMap();
+        long unhealthyTabletNum;
+        String procPath = "/statistic";
+        try {
+            ProcNodeInterface nodeInterface = ProcService.getInstance().open(procPath);
+            ProcResult result = nodeInterface.fetchResult();
+            List<List<String>> rows = result.getRows();
+            Objects.nonNull(rows);
+            if (rows == null || rows.size() <= 0 || !result.getColumnNames().contains(StatisticProcDir.UNHEALTHY_TABLET_NUM)) {
+                LOG.warn("failed to fetch UnhealthyTabletNum from proc '\"/statistic\"");
+                return null;
+            }
+            List<String> totalRow = rows.get(rows.size() - 1);
+            String unhealthyTablet = totalRow.get(result.getColumnNames().indexOf(StatisticProcDir.UNHEALTHY_TABLET_NUM));
+            unhealthyTabletNum = Long.parseLong(unhealthyTablet);
+        } catch (Exception e) {
+            LOG.warn(e.getMessage());
+            return null;
+        }
+        statistics.put(BDBJEMetricUtils.UNHEALTHY_TABLET_NUM, unhealthyTabletNum);
+        return statistics;
     }
 
     /*

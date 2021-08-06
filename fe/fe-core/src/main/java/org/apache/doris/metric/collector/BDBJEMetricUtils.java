@@ -17,7 +17,6 @@
 
 package org.apache.doris.metric.collector;
 
-
 /**
  * This class contains the keywords and methods used to read and write metric from bdbje.
  */
@@ -38,6 +37,7 @@ class BDBJEMetricUtils {
     static final String CONNECTION_TOTAL = "connection_total";
     static final String QPS = "qps";
     static final String QUERY_LATENCY_MS = "query_latency_ms";
+    static final String SCHEDULED_TABLET_NUM = "scheduled_tablet_num";
     static final String QUANLITE = "quantile";
     static final String PERCENTILE_75TH = "0.75";
     static final String PERCENTILE_95TH = "0.95";
@@ -60,6 +60,7 @@ class BDBJEMetricUtils {
     static final String FE_NODE_NUM_ALIVE = "fe_node_num_alive";
     static final String BE_NODE_NUM_TOTAL = "be_node_num_total";
     static final String BE_NODE_NUM_ALIVE = "be_node_num_alive";
+    static final String UNHEALTHY_TABLET_NUM = "unhealthy_tablet_num";
 
     static String CPU_TOTAL = "cpu_total";
     static String CPU_IDLE = "cpu_idle";

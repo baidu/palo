@@ -15,11 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package org.apache.doris.httpv2.rest;
+package org.apache.doris.httpv2.rest.manager;
 
 import org.apache.doris.httpv2.entity.ResponseEntityBuilder;
+import org.apache.doris.httpv2.rest.RestBaseController;
 import org.apache.doris.metric.collector.ClusterInfo;
 import org.apache.doris.metric.collector.Monitor;
+import org.apache.doris.mysql.privilege.PrivPredicate;
+import org.apache.doris.qe.ConnectContext;
 
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -28,26 +31,33 @@ import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+
 /**
  * This class is used to get Doris monitoring data by http get method.
  */
 @RestController
-@RequestMapping("/rest/v2")
-public class MonitorAction {
+@RequestMapping("/rest/v2/manager/monitor")
+public class ManagerMonitorAction extends RestBaseController {
     private static final String START_TIMESTAMP = "start";
     private static final String END_TIMESTAMP = "end";
 
     /**
-     * url: http://fe_host:http_port/rest/v2/monitor/timeserial/{@link Monitor.MonitorType}?start=startTimestamp&end
+     * url: http://fe_host:http_port/rest/v2/manager/monitor/timeserial/{@link Monitor.MonitorType}?start=startTimestamp&end
      * =endTimestamp,
      * and the get method must has a body containing a json map of nodes, like:
      * {"nodes":["host1:http_port", "host2:http_port"]}.
      */
-    @RequestMapping(path = "/monitor/timeserial/{type}", method = RequestMethod.GET)
-    public Object timeSerial(@PathVariable("type") String type,
+    @RequestMapping(path = "/timeserial/{type}", method = RequestMethod.POST)
+    public Object timeSerial(HttpServletRequest request, HttpServletResponse response,
+                             @PathVariable("type") String type,
                              @RequestParam(value = START_TIMESTAMP) long start,
                              @RequestParam(value = END_TIMESTAMP) long end,
-                             @RequestBody Monitor.BodyParameter bodyParameter) {
+                             @RequestBody(required = false) Monitor.BodyParameter bodyParameter) {
+        executeCheckPassword(request, response);
+        checkGlobalAuth(ConnectContext.get().getCurrentUserIdentity(), PrivPredicate.ADMIN);
+
         Object data;
         try {
             Monitor.MonitorType monitorType = Monitor.MonitorType.valueOf(type.toUpperCase());
@@ -61,10 +71,14 @@ public class MonitorAction {
     }
 
     /**
-     * url: http://fe_host:http_port/rest/v2/monitor/cluster_info/{@link ClusterInfo.ClusterInfoType}
+     * url: http://fe_host:http_port/rest/v2/manager/monitor/value/{@link ClusterInfo.ClusterInfoType}
      */
-    @RequestMapping(path = "/monitor/cluster_info/{type}", method = RequestMethod.GET)
-    public Object clusterInfo(@PathVariable("type") String type) {
+    @RequestMapping(path = "/value/{type}", method = RequestMethod.GET)
+    public Object clusterInfo(HttpServletRequest request, HttpServletResponse response,
+                              @PathVariable("type") String type) {
+        executeCheckPassword(request, response);
+        checkGlobalAuth(ConnectContext.get().getCurrentUserIdentity(), PrivPredicate.ADMIN);
+
         try {
             ClusterInfo.ClusterInfoType clusterInfoType = ClusterInfo.ClusterInfoType.valueOf(type.toUpperCase());
             return ResponseEntityBuilder.ok(ClusterInfo.getClusterInfo(clusterInfoType));

@@ -17,18 +17,17 @@
 
 package org.apache.doris.metric.collector;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 import org.apache.doris.catalog.Catalog;
 import org.apache.doris.common.Config;
 import org.apache.doris.common.DdlException;
 import org.apache.doris.common.Pair;
 import org.apache.doris.common.util.NetUtils;
-import org.apache.doris.persist.gson.GsonUtils;
 import org.apache.doris.system.SystemInfoService;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
 
 import java.net.InetSocketAddress;
 import java.util.List;
@@ -55,8 +54,6 @@ import lombok.Setter;
  */
 public class Monitor {
     public static final int DEFAULT_MONITOR_POINTS = 100;
-    public static final String NODES = "nodes";
-    public static final String POINT_NUM = "point_num";
 
     public enum MonitorType {
         QPS("frontend"),
@@ -64,6 +61,7 @@ public class Monitor {
         QUERY_ERR_RATE("frontend"),
         CONN_TOTAL("frontend"),
         TXN_STATUS("frontend"),
+        SCHEDULED_TABLET_NUM("frontend"),
         BE_CPU_IDLE("backend"),
         BE_MEM("backend"),
         BE_DISK_IO("backend"),
@@ -78,18 +76,15 @@ public class Monitor {
     }
 
     // read metric from bdbje and calculate monitor.
-    public static Object monitoring(long startTime, long endTime, String parameterJson, MonitorType monitorType)
+    public static Object monitoring(long startTime, long endTime, BodyParameter bodyParameter, MonitorType monitorType)
             throws DdlException {
         if (!Config.enable_monitor) {
             throw new DdlException("no enable monitor server.");
         }
-        JsonObject parameterJsonObject = JsonParser.parseString(parameterJson).getAsJsonObject();
 
         int pointNum = DEFAULT_MONITOR_POINTS;
-        try {
-            pointNum = parameterJsonObject.get(POINT_NUM).getAsInt();
-        } catch (Exception ignored) {
-            // POINT_NUM is an optional parameter. If the user does not set it, an exception will be thrown.
+        if(bodyParameter != null && bodyParameter.getPointNum() > 0) {
+            pointNum = bodyParameter.getPointNum();
         }
 
         // The timestamp for writing metric is a multiple of the WRITE_INTERVAL_MS,
@@ -103,11 +98,15 @@ public class Monitor {
             timestampsOfReadingMetric.add(time);
         }
 
-        List<String> nodes;
-        try {
-            nodes = GsonUtils.GSON.fromJson(parameterJsonObject.get(NODES).getAsJsonArray(), List.class);
-        } catch (Exception e) {
-            nodes = Lists.newArrayList();
+        List<String> nodes = Lists.newArrayList();
+        if(bodyParameter == null || bodyParameter.getNodes() == null || bodyParameter.getNodes().isEmpty()) {
+            if (monitorType.nodeType.equals("frontend")) {
+                nodes.addAll(ClusterInfo.feList());
+            } else {
+                nodes.addAll(ClusterInfo.beList());
+            }
+        } else {
+            nodes = bodyParameter.getNodes();
         }
 
         switch (monitorType) {
@@ -115,11 +114,10 @@ public class Monitor {
                 return qps(nodes, timestampsOfReadingMetric);
             case QUERY_LATENCY:
                 String quanlite;
-                try {
-                    quanlite = parameterJsonObject.get(BDBJEMetricUtils.QUANLITE).getAsString();
-                } catch (Exception e) {
+                if (bodyParameter == null || bodyParameter.getQuantile() == null) {
                     throw new DdlException("request query_latency is missing parameter quanlite.");
                 }
+                quanlite = bodyParameter.getQuantile();
                 return queryLatency(nodes, timestampsOfReadingMetric, quanlite);
             case QUERY_ERR_RATE:
                 return queryErrRate(nodes, timestampsOfReadingMetric);
@@ -127,6 +125,8 @@ public class Monitor {
                 return connectionTotal(nodes, timestampsOfReadingMetric);
             case TXN_STATUS:
                 return transactionStatus(timestampsOfReadingMetric, readInterval);
+            case SCHEDULED_TABLET_NUM:
+                return scheduledTabletNum(timestampsOfReadingMetric, readInterval);
             case BE_CPU_IDLE:
                 return beCpuIdle(startReadTime - readInterval, nodes, timestampsOfReadingMetric);
             case BE_MEM:
@@ -158,22 +158,18 @@ public class Monitor {
     }
 
     private static ChartData<Double> qps(List<String> nodes, List<Long> timestampsOfReadingMetric) {
-        emptyAddAllFe(nodes);
         return readDataDouble(BDBJEMetricUtils.QPS, nodes, timestampsOfReadingMetric);
     }
 
     private static ChartData<Double> queryLatency(List<String> nodes, List<Long> timestampsOfReadingMetric, String quanlite) {
-        emptyAddAllFe(nodes);
         return readDataDouble(BDBJEMetricUtils.QUANLITE.concat(quanlite), nodes, timestampsOfReadingMetric);
     }
 
     private static ChartData<Double> queryErrRate(List<String> nodes, List<Long> timestampsOfReadingMetric) {
-        emptyAddAllFe(nodes);
         return readDataDouble(BDBJEMetricUtils.QUERY_ERR_RATE, nodes, timestampsOfReadingMetric);
     }
 
     private static ChartData<Long> connectionTotal(List<String> nodes, List<Long> timestampsOfReadingMetric) {
-        emptyAddAllFe(nodes);
         return readDataLong(BDBJEMetricUtils.CONNECTION_TOTAL, nodes, timestampsOfReadingMetric);
     }
 
@@ -206,9 +202,6 @@ public class Monitor {
      */
     private static ChartDataTxn<Double> transactionStatus(List<Long> timestampsOfReadingMetric, int readInterval) {
         Map<String, Map<String, List<Double>>> nodeToData = Maps.newHashMap();
-        // Only master of fe has this monitoring data.
-        InetSocketAddress master = Catalog.getCurrentCatalog().getHaProtocol().getLeader();
-        Pair<String, Integer> ipPort = new Pair<>(master.getAddress().getHostAddress(), Config.http_port);
         Map<String, List<Double>> txnData = Maps.newHashMap();
         txnData.put(BDBJEMetricUtils.BEGIN, getTransactionStatusData(BDBJEMetricUtils.TXN_BEGIN, readInterval,
                 timestampsOfReadingMetric));
@@ -216,7 +209,7 @@ public class Monitor {
                 timestampsOfReadingMetric));
         txnData.put(BDBJEMetricUtils.FAILED, getTransactionStatusData(BDBJEMetricUtils.TXN_FAILED, readInterval,
                 timestampsOfReadingMetric));
-        nodeToData.put(NetUtils.getHostnameByIp(ipPort.first) + ":" + ipPort.second, txnData);
+        nodeToData.put(getMasterHostPort(), txnData);
         return new ChartDataTxn<>(timestampsOfReadingMetric, nodeToData);
     }
 
@@ -246,12 +239,22 @@ public class Monitor {
         return (secondValue - firstValue) * 1000.0 / readInterval;
     }
 
+    private static ChartData<Long> scheduledTabletNum(List<Long> timestampsOfReadingMetric, int readInterval) {
+        return readDataLong(BDBJEMetricUtils.SCHEDULED_TABLET_NUM, Lists.newArrayList(getMasterHostPort()),
+                timestampsOfReadingMetric);
+    }
+
+    private static String getMasterHostPort() {
+        InetSocketAddress master = Catalog.getCurrentCatalog().getHaProtocol().getLeader();
+        Pair<String, Integer> ipPort = new Pair<>(master.getAddress().getHostAddress(), Config.http_port);
+        return NetUtils.getHostnameByIp(ipPort.first) + ":" + ipPort.second;
+    }
+
     // cpuIdle is the total cpu idle time since boot, and cpuTotal is the total cpu time since boot.
     // Average cpuIdlePercent in readInterval = (cpuIdle2 - cpuIdle1) / (cpuTotal2 - cpuIdle1) * 100%
     // The average cpuIdlePercent is used to represent the cpuIdlePercent.
     private static ChartData<Long> beCpuIdle(long lastTimestamp, List<String> nodes, List<Long> timestampsOfReadingMetric) {
         Map<String, List<Long>> nodeToData = Maps.newHashMap();
-        emptyAddAllBe(nodes);
         BDBJEMetricHandler bdbjeMetricHandler = Catalog.getCurrentCatalog().getBDBJEMetricHandler();
         for (String node : nodes) {
             Pair<String, Integer> ipPort;
@@ -290,35 +293,19 @@ public class Monitor {
     }
 
     private static ChartData<Long> beMem(List<String> nodes, List<Long> timestampsOfReadingMetric) {
-        emptyAddAllBe(nodes);
         return readDataLong(BDBJEMetricUtils.METRIC_MEMORY_ALLOCATED_BYTES, nodes, timestampsOfReadingMetric);
     }
 
     private static ChartData<Long> diskIoUtil(List<String> nodes, List<Long> timestampsOfReadingMetric) {
-        emptyAddAllBe(nodes);
         return readDataLong(BDBJEMetricUtils.METRIC_MAX_DISK_IO_UTIL_PERCENT, nodes, timestampsOfReadingMetric);
     }
 
     private static ChartData<Long> beBaseCompactionScore(List<String> nodes, List<Long> timestampsOfReadingMetric) {
-        emptyAddAllBe(nodes);
         return readDataLong(BDBJEMetricUtils.BASE_COMPACTION_SCORE, nodes, timestampsOfReadingMetric);
     }
 
     private static ChartData<Long> beCumuCompactionScore(List<String> nodes, List<Long> timestampsOfReadingMetric) {
-        emptyAddAllBe(nodes);
         return readDataLong(BDBJEMetricUtils.CUMU_COMPACTION_SCORE, nodes, timestampsOfReadingMetric);
-    }
-
-    private static void emptyAddAllFe(List<String> nodes) {
-        if (nodes.isEmpty()) {
-            nodes.addAll(ClusterInfo.feList());
-        }
-    }
-
-    private static void emptyAddAllBe(List<String> nodes) {
-        if (nodes.isEmpty()) {
-            nodes.addAll(ClusterInfo.beList());
-        }
     }
 
     private static ChartData<Long> readDataLong(String metricName, List<String> nodes,
@@ -363,6 +350,39 @@ public class Monitor {
             nodeToData.put(node, values);
         }
         return new ChartData<>(timestampsOfReadingMetric, nodeToData);
+    }
+
+    public static class BodyParameter {
+        private List<String> nodes;
+
+        @JsonProperty("point_num")
+        private int pointNum;
+
+        private String quantile;
+
+        public List<String> getNodes() {
+            return nodes;
+        }
+
+        public void setNodes(List<String> nodes) {
+            this.nodes = nodes;
+        }
+
+        public int getPointNum() {
+            return pointNum;
+        }
+
+        public void setPointNum(int pointNum) {
+            this.pointNum = pointNum;
+        }
+
+        public String getQuantile() {
+            return quantile;
+        }
+
+        public void setQuantile(String quantile) {
+            this.quantile = quantile;
+        }
     }
 
     @Getter

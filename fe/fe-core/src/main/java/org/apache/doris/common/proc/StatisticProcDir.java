@@ -48,10 +48,22 @@ import java.util.Collections;
 import java.util.List;
 
 public class StatisticProcDir implements ProcDirInterface {
+    public static final String DB_ID = "DbId";
+    public static final String DB_NAME = "DbName";
+    public static final String TABLE_NUM = "TableNum";
+    public static final String PARTITION_NUM = "PartitionNum";
+    public static final String INDEX_NUM = "IndexNum";
+    public static final String TABLET_NUM = "TabletNum";
+    public static final String REPLICA_NUM = "ReplicaNum";
+    public static final String UNHEALTHY_TABLET_NUM = "UnhealthyTabletNum";
+    public static final String INCONSISTENT_TABLET_NUM = "InconsistentTabletNum";
+    public static final String CLONING_TABLET_NUM = "CloningTabletNum";
+    public static final String BAD_TABLET_NUM = "BadTabletNum";
+
     public static final ImmutableList<String> TITLE_NAMES = new ImmutableList.Builder<String>()
-            .add("DbId").add("DbName").add("TableNum").add("PartitionNum")
-            .add("IndexNum").add("TabletNum").add("ReplicaNum").add("UnhealthyTabletNum")
-            .add("InconsistentTabletNum").add("CloningTabletNum").add("BadTabletNum")
+            .add(DB_ID).add(DB_NAME).add(TABLE_NUM).add(PARTITION_NUM)
+            .add(INDEX_NUM).add(TABLET_NUM).add(REPLICA_NUM).add(UNHEALTHY_TABLET_NUM)
+            .add(INCONSISTENT_TABLET_NUM).add(CLONING_TABLET_NUM).add(BAD_TABLET_NUM)
             .build();
     private static final Logger LOG = LogManager.getLogger(StatisticProcDir.class);
 

@@ -26,9 +26,6 @@ import org.apache.doris.metric.collector.Monitor;
 
 import com.google.common.collect.Lists;
 
-import org.json.JSONArray;
-import org.json.JSONObject;
-
 import java.util.List;
 
 // This is a helper class.
@@ -36,15 +33,12 @@ import java.util.List;
 public class MetricDrawer {
 
     public static String draw(long startTime, long endTime, String node, Monitor.MonitorType type) throws UserException {
-        // assemble the request json body
-        JSONObject object = new JSONObject();
-        object.put(Monitor.POINT_NUM, Monitor.DEFAULT_MONITOR_POINTS);
-        JSONArray array = new JSONArray();
-        array.put(node);
-        object.put(Monitor.NODES, array);
+        List<String> nodes = Lists.newArrayList(node);
+        Monitor.BodyParameter bodyParameter = new Monitor.BodyParameter();
+        bodyParameter.setNodes(nodes);
 
         // get metric chart data
-        Object o = Monitor.monitoring(startTime, endTime, object.toString(), type);
+        Object o = Monitor.monitoring(startTime, endTime, bodyParameter, type);
         if (!(o instanceof Monitor.ChartData)) {
             throw new AnalysisException("Not chart data");
         }

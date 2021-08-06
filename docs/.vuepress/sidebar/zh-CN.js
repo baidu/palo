@@ -94,6 +94,7 @@ module.exports = [
                     "cluster-action",
                     "node-action",
                     "query-profile-action",
+                    "monitor-action",
                   ],
                 },
                 "bootstrap-action",

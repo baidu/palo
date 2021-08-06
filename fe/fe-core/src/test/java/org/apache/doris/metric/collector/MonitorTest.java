@@ -1,7 +1,22 @@
+// Licensed to the Apache Software Foundation (ASF) under one
+// or more contributor license agreements.  See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.  The ASF licenses this file
+// to you under the Apache License, Version 2.0 (the
+// "License"); you may not use this file except in compliance
+// with the License.  You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
 package org.apache.doris.metric.collector;
 
-import com.clearspring.analytics.util.Lists;
-import com.google.gson.annotations.SerializedName;
 import mockit.Delegate;
 import mockit.Expectations;
 import mockit.Mocked;
@@ -9,7 +24,10 @@ import org.apache.doris.catalog.Catalog;
 import org.apache.doris.common.Config;
 import org.apache.doris.common.DdlException;
 import org.apache.doris.ha.HAProtocol;
-import org.apache.doris.persist.gson.GsonUtils;
+
+import com.clearspring.analytics.util.Lists;
+import com.google.gson.annotations.SerializedName;
+
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -102,8 +120,10 @@ public class MonitorTest {
         List<String> nodes = Lists.newArrayList();
         nodes.add(NODE1);
         nodes.add(NODE2);
-        String nodesJson = GsonUtils.GSON.toJson(new Para(nodes, 2));
-        return Monitor.monitoring(startTime, endTime, nodesJson, monitorType);
+        Monitor.BodyParameter bodyParameter = new Monitor.BodyParameter();
+        bodyParameter.setNodes(nodes);
+        bodyParameter.setPointNum(2);
+        return Monitor.monitoring(startTime, endTime, bodyParameter, monitorType);
     }
 
     private long parseJsonLong(Object object) throws DdlException {
@@ -137,8 +157,11 @@ public class MonitorTest {
         setUp();
         List<String> nodes = Lists.newArrayList();
         nodes.add(NODE1);
-        String nodesJson = GsonUtils.GSON.toJson(new Para(nodes, 2, "0.99"));
-        Object resultJson = Monitor.monitoring(startTime, endTime, nodesJson, Monitor.MonitorType.QUERY_LATENCY);
+        Monitor.BodyParameter bodyParameter = new Monitor.BodyParameter();
+        bodyParameter.setNodes(nodes);
+        bodyParameter.setPointNum(2);
+        bodyParameter.setQuantile("0.99");
+        Object resultJson = Monitor.monitoring(startTime, endTime, bodyParameter, Monitor.MonitorType.QUERY_LATENCY);
         double result = parseJsonDouble(resultJson);
         Assert.assertTrue(startTime <= result && result <= endTime);
     }

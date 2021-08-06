@@ -273,6 +273,12 @@ public class MetricCollector {
                                 break;
                         }
                         break;
+                    case BDBJEMetricUtils.SCHEDULED_TABLET_NUM:
+                        if (isMaster(host)) {
+                            bdbjeMetricHandler.writeLong(BDBJEMetricUtils.concatBdbKey(host, port,
+                                    BDBJEMetricUtils.SCHEDULED_TABLET_NUM, timestamp), value.getAsLong());
+                        }
+                        break;
                     default:
                         break;
                 }
