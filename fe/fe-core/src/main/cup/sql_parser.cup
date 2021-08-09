@@ -4731,7 +4731,6 @@ admin_stmt ::=
     {:
         RESULT = new AdminCheckTabletsStmt(tabletIds, properties);
     :}
-<<<<<<< HEAD
     | KW_ADMIN KW_SHOW KW_BACKEND KW_METRIC opt_key_value_map:kv
     {:
         RESULT = new AdminShowMetricStmt(AdminShowMetricStmt.NodeType.BACKEND, kv);
@@ -4739,11 +4738,10 @@ admin_stmt ::=
     | KW_ADMIN KW_SHOW KW_FRONTEND KW_METRIC opt_key_value_map:kv
     {:
         RESULT = new AdminShowMetricStmt(AdminShowMetricStmt.NodeType.FRONTEND, kv);
-=======
+    :}
     | KW_ADMIN KW_SHOW KW_DATA KW_SKEW KW_FROM base_table_ref:table_ref
     {:
         RESULT = new AdminShowDataSkewStmt(table_ref);
->>>>>>> 2823e4dab... [Feature] Support SHOW DATA SKEW stmt (#6219)
     :}
     ;
 
