@@ -194,7 +194,15 @@ under the License.
             2) The sequence_type is used to specify the type of the sequence column, which can be integral and time type
             3) Only the orderliness of newly imported data is supported. Historical data cannot be changed
      
+    10. Modify table comment
+        grammer:
+            MODIFY COMMENT "new table comment"
 
+    11. Modify column comment
+        grammer:
+            MODIFY COLUMN col1 COMMENT "new column comment"
+
+     
     Rename supports modification of the following names:
     1. Modify the table name
         grammar:
@@ -369,6 +377,14 @@ under the License.
     17. Enable the ability to import in order by the value of the Sequence column
 
         ALTER TABLE example_db.my_table ENABLE FEATURE "SEQUENCE_LOAD" WITH PROPERTIES ("function_column.sequence_type" = "Date")
+
+    18. Modify table comment
+
+        ALTER TABLE example_db.my_table MODIFY COMMENT "new comment";
+
+    19. Modify column comment
+
+        ALTER TABLE example_db.my_table MODIFY COLUMN k1 COMMENT "k1", MODIFY COLUMN k2 COMMENT "k2";
         
     [rename]
     1. Modify the table named table1 to table2

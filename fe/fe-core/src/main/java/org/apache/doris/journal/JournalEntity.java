@@ -65,12 +65,13 @@ import org.apache.doris.persist.DropPartitionInfo;
 import org.apache.doris.persist.DropResourceOperationLog;
 import org.apache.doris.persist.GlobalVarPersistInfo;
 import org.apache.doris.persist.HbPackage;
+import org.apache.doris.persist.LdapInfo;
+import org.apache.doris.persist.ModifyCommentOperationLog;
 import org.apache.doris.persist.ModifyPartitionInfo;
 import org.apache.doris.persist.ModifyTablePropertyOperationLog;
 import org.apache.doris.persist.OperationType;
 import org.apache.doris.persist.PartitionPersistInfo;
 import org.apache.doris.persist.PrivInfo;
-import org.apache.doris.persist.LdapInfo;
 import org.apache.doris.persist.RecoverInfo;
 import org.apache.doris.persist.RefreshExternalTableInfo;
 import org.apache.doris.persist.RemoveAlterJobV2OperationLog;
@@ -585,6 +586,11 @@ public class JournalEntity implements Writable {
             }              
             case OperationType.OP_REMOVE_ALTER_JOB_V2: {
                 data = RemoveAlterJobV2OperationLog.read(in);
+                isRead = true;
+                break;
+            }
+            case OperationType.OP_MODIFY_COMMENT: {
+                data = ModifyCommentOperationLog.read(in);
                 isRead = true;
                 break;
             }

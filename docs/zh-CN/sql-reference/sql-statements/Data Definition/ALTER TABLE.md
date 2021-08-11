@@ -192,6 +192,13 @@ under the License.
             2) sequence_type用来指定sequence列的类型，可以为整型和时间类型
             3) 只支持新导入数据的有序性，历史数据无法更改
      
+    9. 修改表注释
+        语法:
+            MODIFY COMMENT "new table comment"
+
+    10. 修改列注释
+        语法:
+            MODIFY COLUMN col1 COMMENT "new column comment"
 
     rename 支持对以下名称进行修改：
     1. 修改表名
@@ -205,6 +212,7 @@ under the License.
     3. 修改 partition 名称
         语法：
             RENAME PARTITION old_partition_name new_partition_name;
+
     bitmap index 支持如下几种修改方式
     1. 创建bitmap 索引
         语法：
@@ -212,6 +220,7 @@ under the License.
         注意：
             1. 目前仅支持bitmap 索引
             1. BITMAP 索引仅在单列上创建
+
     2. 删除索引
         语法：
             DROP INDEX index_name；
@@ -364,6 +373,15 @@ under the License.
     
         ALTER TABLE example_db.my_table ENABLE FEATURE "SEQUENCE_LOAD" WITH PROPERTIES ("function_column.sequence_type" = "Date")
         
+
+    18. 修改表注释
+
+        ALTER TABLE example_db.my_table MODIFY COMMENT "new comment";
+
+    19. 修改列注释
+
+        ALTER TABLE example_db.my_table MODIFY COLUMN k1 COMMENT "k1", MODIFY COLUMN k2 COMMENT "k2";
+    
     [rename]
     1. 将名为 table1 的表修改为 table2
         ALTER TABLE table1 RENAME table2;

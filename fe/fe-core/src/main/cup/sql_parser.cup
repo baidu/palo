@@ -1020,6 +1020,14 @@ alter_table_clause ::=
     {:
         RESULT = new EnableFeatureClause(featureName, properties);
     :}
+    | KW_MODIFY KW_COMMENT STRING_LITERAL:comment
+    {:
+        RESULT = new ModifyTableCommentClause(comment);
+    :}
+    | KW_MODIFY KW_COLUMN ident:colName KW_COMMENT STRING_LITERAL:comment
+    {:
+        RESULT = new ModifyColumnCommentClause(colName, comment);
+    :}
     ;
 
 opt_enable_feature_properties ::=
