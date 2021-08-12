@@ -618,6 +618,10 @@ public class DistributedPlanner {
         OlapScanNode leftScanNode = ((OlapScanNode) leftRoot);
         OlapTable leftTable = leftScanNode.getOlapTable();
 
+        if (leftScanNode.getSelectedPartitionIds().isEmpty()) {
+            return false;
+        }
+
         //1 the left table has more than one partition or left table is not a stable colocate table
         if (leftScanNode.getSelectedPartitionIds().size() != 1) {
             ColocateTableIndex colocateIndex = Catalog.getCurrentColocateIndex();
