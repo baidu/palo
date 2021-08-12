@@ -1264,6 +1264,10 @@ public class RestoreJob extends AbstractJob {
                                 // bos://location/__palo_repository_my_repo/_ss_my_ss/_ss_content/__db_10000/
                                 // __tbl_10001/__part_10002/_idx_10001/__10003
                                 String src = repo.getRepoPath(label, repoTabletPath);
+                                if (src == null) {
+                                    status = new Status(ErrCode.COMMON_ERROR, "invalid src path: " + repoTabletPath);
+                                    return;
+                                }
                                 SnapshotInfo snapshotInfo = snapshotInfos.get(info.getTabletId(), info.getBeId());
                                 Preconditions.checkNotNull(snapshotInfo, info.getTabletId() + "-" + info.getBeId());
                                 // download to previous exist snapshot dir
