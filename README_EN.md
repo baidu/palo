@@ -17,7 +17,7 @@ The Palo release is based on the official release version of Apache Doris [3-bit
 
 For downloading the binary, source code, please visit:
 
-[Palo official website document](http://palo.baidu.com/docs/%E4%B8%8B%E8%BD%BD%E4%B8%93%E5%8C%BA/%E9%A2%84% E7%BC%96%E8%AF%91%E7%89%88%E6%9C%AC%E4%B8%8B%E8%BD%BD)
+[Palo official website document](http://palo.baidu.com/docs/%E4%B8%8B%E8%BD%BD%E4%B8%93%E5%8C%BA/%E9%A2%84%E7%BC%96%E8%AF%91%E7%89%88%E6%9C%AC%E4%B8%8B%E8%BD%BD)
 
 ## Special declaration
 
