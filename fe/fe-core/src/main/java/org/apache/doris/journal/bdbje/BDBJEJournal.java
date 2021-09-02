@@ -425,8 +425,16 @@ public class BDBJEJournal implements Journal {
 
     @Override
     public long getCountOfDatabase(String dbName, DatabaseConfig dbConfig) {
-        Database db = bdbEnvironment.openDatabaseAlong(dbName, dbConfig);
-        return db.count();
+        Database db = null;
+        try {
+            db = bdbEnvironment.openDatabaseAlong(dbName, dbConfig);
+            return db.count();
+        } finally {
+            // must close the database, or it will hold read lock forever.
+            if (db != null) {
+                db.close();
+            }
+        }
     }
 
     public boolean isPortUsing(String host, int port) throws UnknownHostException {

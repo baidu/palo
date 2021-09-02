@@ -425,7 +425,8 @@ public class BDBEnvironment {
         return Durability.ReplicaAckPolicy.SIMPLE_MAJORITY;
     }
 
-    // Open a database along. This database should be read only
+    // Open a database along. This database should be read only.
+    // And make sure the database is closed after using it.
     public Database openDatabaseAlong(String dbName, DatabaseConfig dbConfig) {
         Preconditions.checkState(dbConfig.getReadOnly());
         return this.replicatedEnvironment.openDatabase(null, dbName, dbConfig);
