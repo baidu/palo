@@ -4075,7 +4075,7 @@ public class Catalog {
             sb.append(Joiner.on(", ").join(keysColumnNames)).append(")");
 
             if (!Strings.isNullOrEmpty(table.getComment())) {
-                sb.append("\nCOMMENT \"").append(table.getComment()).append("\"");
+                sb.append("\nCOMMENT \"").append(table.getComment(true)).append("\"");
             }
 
             // partition
@@ -4145,7 +4145,7 @@ public class Catalog {
         } else if (table.getType() == TableType.MYSQL) {
             MysqlTable mysqlTable = (MysqlTable) table;
             if (!Strings.isNullOrEmpty(table.getComment())) {
-                sb.append("\nCOMMENT \"").append(table.getComment()).append("\"");
+                sb.append("\nCOMMENT \"").append(table.getComment(true)).append("\"");
             }
             // properties
             sb.append("\nPROPERTIES (\n");
@@ -4163,7 +4163,7 @@ public class Catalog {
         } else if (table.getType() == TableType.ODBC) {
             OdbcTable odbcTable = (OdbcTable) table;
             if (!Strings.isNullOrEmpty(table.getComment())) {
-                sb.append("\nCOMMENT \"").append(table.getComment()).append("\"");
+                sb.append("\nCOMMENT \"").append(table.getComment(true)).append("\"");
             }
             // properties
             sb.append("\nPROPERTIES (\n");
@@ -4183,7 +4183,7 @@ public class Catalog {
         } else if (table.getType() == TableType.BROKER) {
             BrokerTable brokerTable = (BrokerTable) table;
             if (!Strings.isNullOrEmpty(table.getComment())) {
-                sb.append("\nCOMMENT \"").append(table.getComment()).append("\"");
+                sb.append("\nCOMMENT \"").append(table.getComment(true)).append("\"");
             }
             // properties
             sb.append("\nPROPERTIES (\n");
@@ -4201,7 +4201,7 @@ public class Catalog {
         } else if (table.getType() == TableType.ELASTICSEARCH) {
             EsTable esTable = (EsTable) table;
             if (!Strings.isNullOrEmpty(table.getComment())) {
-                sb.append("\nCOMMENT \"").append(table.getComment()).append("\"");
+                sb.append("\nCOMMENT \"").append(table.getComment(true)).append("\"");
             }
 
             // partition
@@ -4237,7 +4237,7 @@ public class Catalog {
         } else if (table.getType() == TableType.HIVE) {
             HiveTable hiveTable = (HiveTable) table;
             if (!Strings.isNullOrEmpty(table.getComment())) {
-                sb.append("\nCOMMENT \"").append(table.getComment()).append("\"");
+                sb.append("\nCOMMENT \"").append(table.getComment(true)).append("\"");
             }
             // properties
             sb.append("\nPROPERTIES (\n");
