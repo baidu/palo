@@ -20,6 +20,7 @@ package org.apache.doris.metric.collector;
 /**
  * This class contains the keywords and methods used to read and write metric from bdbje.
  */
+@Deprecated
 class BDBJEMetricUtils {
     private static final String KEY_SEPARATOR = ":";
     private static final String UNDER_LINE = "_";

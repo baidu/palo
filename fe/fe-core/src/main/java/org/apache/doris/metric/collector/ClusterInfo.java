@@ -41,6 +41,7 @@ import java.util.Objects;
 /**
  * This class provides monitoring data of cluster information.
  */
+@Deprecated
 public class ClusterInfo {
     private static final Logger LOG = LogManager.getLogger(ClusterInfo.class);
 

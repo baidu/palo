@@ -39,6 +39,7 @@ import java.io.UnsupportedEncodingException;
 /**
  * This class stores the metric data of fe and be into the database of BDBEnvironment.
  */
+@Deprecated
 public class BDBJEMetricHandler {
     private static final Logger LOG = LogManager.getLogger(BDBJEMetricHandler.class);
     private static final String CHARSET_NAME = "UTF-8";

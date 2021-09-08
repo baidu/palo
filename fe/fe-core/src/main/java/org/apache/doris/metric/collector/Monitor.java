@@ -52,6 +52,7 @@ import lombok.Setter;
  *      }
  *  }
  */
+@Deprecated
 public class Monitor {
     public static final int DEFAULT_MONITOR_POINTS = 100;
 

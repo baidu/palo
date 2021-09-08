@@ -43,6 +43,7 @@ import java.util.concurrent.TimeUnit;
  * Master of fe use this class to start a thread to get metric data from each node
  * and write it to the bdbje periodically.
  */
+@Deprecated
 public class MetricCollector {
     private static final Logger LOG = LogManager.getLogger(MetricCollector.class);
 

@@ -1416,7 +1416,7 @@ public class Config extends ConfigBase {
      * If set to true, FE will store metric data periodically, and open monitoring service.
      */
     @ConfField(mutable = true, masterOnly = true)
-    public static boolean enable_monitor = true;
+    public static boolean enable_monitor = false;
 
     /**
      * metric time to live days.

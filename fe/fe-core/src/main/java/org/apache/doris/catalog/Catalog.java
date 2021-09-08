@@ -1245,7 +1245,7 @@ public class Catalog {
 
         if (metricCollector == null) {
             metricCollector = new MetricCollector(bdbjeMetricHandler);
-            metricCollector.startWriteMetric();
+            // metricCollector.startWriteMetric();
         }
 
         canRead.set(true);
