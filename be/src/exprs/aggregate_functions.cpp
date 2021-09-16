@@ -586,11 +586,7 @@ void AggregateFunctions::sum(FunctionContext* ctx, const DecimalV2Val& src, Deci
         return;
     }
 
-    if (dst->is_null) {
-        dst->is_null = false;
-        dst->set_to_zero();
-    }
-
+    dst->is_null = false;
     DecimalV2Value new_src = DecimalV2Value::from_decimal_val(src);
     DecimalV2Value new_dst = DecimalV2Value::from_decimal_val(*dst);
     new_dst = new_dst + new_src;
@@ -602,12 +598,7 @@ void AggregateFunctions::sum(FunctionContext* ctx, const LargeIntVal& src, Large
     if (src.is_null) {
         return;
     }
-
-    if (dst->is_null) {
-        dst->is_null = false;
-        dst->val = 0;
-    }
-
+    dst->is_null = false;
     dst->val += src.val;
 }
 
@@ -2024,7 +2015,7 @@ DecimalV2Val AggregateFunctions::decimalv2_knuth_var_finalize(FunctionContext* c
 }
 
 DoubleVal AggregateFunctions::knuth_var_pop_finalize(FunctionContext* ctx,
-                                                    const StringVal& state_sv) {
+                                                     const StringVal& state_sv) {
     DCHECK_EQ(state_sv.len, sizeof(KnuthVarianceState));
     KnuthVarianceState* state = reinterpret_cast<KnuthVarianceState*>(state_sv.ptr);
     if (state->count == 0) return DoubleVal::null();

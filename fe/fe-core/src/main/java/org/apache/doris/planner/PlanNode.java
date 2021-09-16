@@ -357,6 +357,9 @@ abstract public class PlanNode extends TreeNode<PlanNode> {
     }
 
     public void transferConjuncts(PlanNode recipient) {
+        recipient.vconjunct = vconjunct;
+        vconjunct = null;
+        
         recipient.conjuncts.addAll(conjuncts);
         conjuncts.clear();
     }

@@ -63,7 +63,7 @@ OlapScanNode::~OlapScanNode() {}
 
 Status OlapScanNode::init(const TPlanNode& tnode, RuntimeState* state) {
     RETURN_IF_ERROR(ExecNode::init(tnode, state));
-    _direct_conjunct_size = state->enable_vectorized_exec() ? 1 : _conjunct_ctxs.size();
+    _direct_conjunct_size =  _conjunct_ctxs.size();
 
     const TQueryOptions& query_options = state->query_options();
     if (query_options.__isset.max_scan_key_num) {
@@ -524,6 +524,10 @@ void OlapScanNode::remove_pushed_conjuncts(RuntimeState* state) {
     }
     // set vconjunct_ctx is empty, if all conjunct
     if (_direct_conjunct_size == 0) {
+        if (_vconjunct_ctx_ptr.get() != nullptr) {
+            (*_vconjunct_ctx_ptr.get())->close(state);
+            _vconjunct_ctx_ptr = nullptr;
+        }
     }
 }
 

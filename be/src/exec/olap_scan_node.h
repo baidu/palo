@@ -32,6 +32,7 @@
 #include "runtime/vectorized_row_batch.h"
 #include "util/progress_updater.h"
 #include "util/spinlock.h"
+#include "vec/exec/volap_scanner.h"
 
 namespace doris {
 class IRuntimeFilter;
@@ -159,6 +160,7 @@ protected:
                             RuntimeProfile* profile);
 
     friend class OlapScanner;
+    friend class doris::vectorized::VOlapScanner;
 
     // Tuple id resolved in prepare() to set _tuple_desc;
     TupleId _tuple_id;

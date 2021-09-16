@@ -757,6 +757,7 @@ public class Analyzer {
         // result.setLabel(srcSlotDesc.getLabel());
         result.setStats(srcSlotDesc.getStats());
         result.setType(srcSlotDesc.getType());
+        result.setIsNullable(srcSlotDesc.getIsNullable());
         // result.setItemTupleDesc(srcSlotDesc.getItemTupleDesc());
         return result;
     }
