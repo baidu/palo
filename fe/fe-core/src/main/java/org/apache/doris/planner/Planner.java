@@ -30,6 +30,7 @@ import org.apache.doris.analysis.StorageBackend;
 import org.apache.doris.analysis.TupleDescriptor;
 import org.apache.doris.catalog.PrimitiveType;
 import org.apache.doris.catalog.ScalarType;
+import org.apache.doris.common.util.VectorizedUtil;
 import org.apache.doris.common.UserException;
 import org.apache.doris.common.profile.PlanTreeBuilder;
 import org.apache.doris.common.profile.PlanTreePrinter;
@@ -226,7 +227,7 @@ public class Planner {
 
         // Create runtime filters.
         if (!ConnectContext.get().getSessionVariable().getRuntimeFilterMode().toUpperCase()
-                .equals(TRuntimeFilterMode.OFF.name())) {
+                .equals(TRuntimeFilterMode.OFF.name()) && !VectorizedUtil.isVectorized()) {
             RuntimeFilterGenerator.generateRuntimeFilters(analyzer, rootFragment.getPlanRoot());
         }
 

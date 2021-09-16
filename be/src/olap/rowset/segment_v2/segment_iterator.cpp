@@ -578,5 +578,10 @@ Status SegmentIterator::next_batch(RowBlockV2* block) {
     return Status::OK();
 }
 
+Status SegmentIterator::next_batch(vectorized::Block* block) {
+    //TODO
+    return Status::NotSupported("not implement now");
+}
+
 } // namespace segment_v2
 } // namespace doris

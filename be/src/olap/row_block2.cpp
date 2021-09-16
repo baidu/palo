@@ -24,6 +24,10 @@
 #include "olap/row_cursor.h"
 #include "util/bitmap.h"
 
+#include "vec/core/block.h"
+#include "vec/columns/column_vector.h"
+#include "vec/core/types.h"
+
 using strings::Substitute;
 namespace doris {
 
@@ -87,6 +91,134 @@ Status RowBlockV2::convert_to_row_block(RowCursor* helper, RowBlock* dst) {
     dst->set_pos(0);
     dst->set_limit(_selected_size);
     dst->finalize(_selected_size);
+    return Status::OK();
+}
+
+void RowBlockV2::_copy_data_to_column(int cid, doris::vectorized::MutableColumnPtr& column) {
+    auto insert_data_directly = [this](int cid, auto& column) {
+        for (uint16_t j = 0; j < _selected_size; ++j) {
+            uint16_t row_idx = _selection_vector[j];
+            column->insert_data(reinterpret_cast<const char *>(column_block(cid).cell_ptr(row_idx)),
+                                    0);
+        }
+    };
+
+    switch (_schema.column(cid)->type()) {
+        case OLAP_FIELD_TYPE_HLL:
+        case OLAP_FIELD_TYPE_MAP:
+        case OLAP_FIELD_TYPE_VARCHAR: {
+            auto column_string = assert_cast<vectorized::ColumnString*>(
+                    column.get());
+
+            for (uint16_t j = 0; j < _selected_size; ++j) {
+                uint16_t row_idx = _selection_vector[j];
+                auto slice = reinterpret_cast<const Slice *>(column_block(cid).cell_ptr(row_idx));
+                column_string->insert_data(slice->data, slice->size);
+            }
+            break;
+        }
+        case OLAP_FIELD_TYPE_CHAR: {
+            auto column_string = assert_cast<vectorized::ColumnString*>(
+                    column.get());
+
+            for (uint16_t j = 0; j < _selected_size; ++j) {
+                uint16_t row_idx = _selection_vector[j];
+                auto slice = reinterpret_cast<const Slice *>(column_block(cid).cell_ptr(row_idx));
+                column_string->insert_data(slice->data, strnlen(slice->data, slice->size));
+            }
+            break;
+        } case OLAP_FIELD_TYPE_DATE: {
+            auto column_int = assert_cast<vectorized::ColumnVector<vectorized::Int128>*>(column.get());
+
+            for (uint16_t j = 0; j < _selected_size; ++j) {
+                uint16_t row_idx = _selection_vector[j];
+                auto ptr = reinterpret_cast<const char *>(column_block(cid).cell_ptr(row_idx));
+
+                uint64_t value = 0;
+                value = *(unsigned char*)(ptr + 2);
+                value <<= 8;
+                value |= *(unsigned char*)(ptr + 1);
+                value <<= 8;
+                value |= *(unsigned char*)(ptr);
+                DateTimeValue date;
+                date.from_olap_date(value);
+                (column_int)->insert_data(reinterpret_cast<char*>(&date), 0);
+            }
+            break;
+        } case OLAP_FIELD_TYPE_DATETIME: {
+            auto column_int = assert_cast<vectorized::ColumnVector<vectorized::Int128>*>(column.get());
+
+            for (uint16_t j = 0; j < _selected_size; ++j) {
+                uint16_t row_idx = _selection_vector[j];
+                auto ptr = reinterpret_cast<const char *>(column_block(cid).cell_ptr(row_idx));
+
+                uint64_t value = *reinterpret_cast<const uint64_t*>(ptr);
+                DateTimeValue data(value);
+                (column_int)->insert_data(reinterpret_cast<char*>(&data), 0);
+            }
+            break;
+        } case OLAP_FIELD_TYPE_DECIMAL: {
+            auto column_decimal = assert_cast<vectorized::ColumnDecimal<vectorized::Decimal128>*>(column.get());
+
+            for (uint16_t j = 0; j < _selected_size; ++j) {
+                uint16_t row_idx = _selection_vector[j];
+                auto ptr = reinterpret_cast<const char *>(column_block(cid).cell_ptr(row_idx));
+
+                int64_t int_value = *(int64_t*)(ptr);
+                int32_t frac_value = *(int32_t*)(ptr + sizeof(int64_t));
+                DecimalV2Value data(int_value, frac_value);
+                column_decimal->insert_data(reinterpret_cast<char*>(&data), 0);
+            }
+            break;
+        } case OLAP_FIELD_TYPE_INT: {
+            auto column_int = assert_cast<vectorized::ColumnVector<vectorized::Int32>*>(column.get());
+            insert_data_directly(cid, column_int);
+            break;
+        }
+        case OLAP_FIELD_TYPE_TINYINT: {
+            auto column_int = assert_cast<vectorized::ColumnVector<vectorized::Int8>*>(column.get());
+            insert_data_directly(cid, column_int);
+            break;
+        }
+        case OLAP_FIELD_TYPE_SMALLINT: {
+            auto column_int = assert_cast<vectorized::ColumnVector<vectorized::Int16>*>(column.get());
+            insert_data_directly(cid, column_int);
+            break;
+        }
+        case OLAP_FIELD_TYPE_BIGINT: {
+            auto column_int = assert_cast<vectorized::ColumnVector<vectorized::Int64>*>(column.get());
+            insert_data_directly(cid, column_int);
+            break;
+        }
+        case OLAP_FIELD_TYPE_LARGEINT: {
+            auto column_int = assert_cast<vectorized::ColumnVector<vectorized::Int128>*>(column.get());
+            insert_data_directly(cid, column_int);
+            break;
+        }
+        case OLAP_FIELD_TYPE_FLOAT: {
+            auto column_float = assert_cast<vectorized::ColumnVector<vectorized::Float32 >*>(column.get());
+            insert_data_directly(cid, column_float);
+            break;
+        }
+        case OLAP_FIELD_TYPE_DOUBLE: {
+            auto column_float = assert_cast<vectorized::ColumnVector<vectorized::Float64>*>(column.get());
+            insert_data_directly(cid, column_float);
+            break;
+        }
+        default: {
+            DCHECK(false) << "Invalid type in RowBlockV2:" <<  _schema.column(cid)->type();
+        }
+    }
+}
+
+Status RowBlockV2::convert_to_vec_block(vectorized::Block* block, bool is_first) {
+    for (int i = 0; i < _schema.column_ids().size(); ++i) {
+        auto cid = _schema.column_ids()[i];
+        auto column = (*std::move(
+                block->get_by_position(i).column)).mutate();
+        _copy_data_to_column(cid, column);
+    }
+    _pool->clear();
     return Status::OK();
 }
 

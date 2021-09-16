@@ -21,6 +21,8 @@
 #include "runtime/runtime_state.h"
 #include "primitive_type.h"
 
+#include "vec/data_types/data_type.h"
+
 namespace doris {
 
 class TupleRow;

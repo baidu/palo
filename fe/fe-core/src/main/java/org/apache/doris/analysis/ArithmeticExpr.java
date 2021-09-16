@@ -128,24 +128,33 @@ public class ArithmeticExpr extends Expr {
 
                 functionSet.addBuiltin(ScalarFunction.createVecBuiltinOperator(
                         Operator.MULTIPLY.getName(), Lists.newArrayList(t1, t2),
-                        Type.getAssignmentCompatibleType(t1, t2, false)));
+                        Type.getNextNumType(Type.getAssignmentCompatibleType(t1, t2, false))));
                 functionSet.addBuiltin(ScalarFunction.createVecBuiltinOperator(
                         Operator.ADD.getName(), Lists.newArrayList(t1, t2),
-                        Type.getAssignmentCompatibleType(t1, t2, false)));
+                        Type.getNextNumType(Type.getAssignmentCompatibleType(t1, t2, false))));
                 functionSet.addBuiltin(ScalarFunction.createVecBuiltinOperator(
                         Operator.SUBTRACT.getName(), Lists.newArrayList(t1, t2),
-                        Type.getAssignmentCompatibleType(t1, t2, false)));
+                        Type.getNextNumType(Type.getAssignmentCompatibleType(t1, t2, false))));
             }
         }
 
         functionSet.addBuiltin(ScalarFunction.createVecBuiltinOperator(
                 Operator.DIVIDE.getName(),
                 Lists.<Type>newArrayList(Type.DOUBLE, Type.DOUBLE),
-                Type.DOUBLE, Function.NullableMode.ALWAYS_NULLABLE));
+                Type.DOUBLE, Function.NullableMode.DEPEND_ON_ARGUMENT));
         functionSet.addBuiltin(ScalarFunction.createVecBuiltinOperator(
                 Operator.DIVIDE.getName(),
                 Lists.<Type>newArrayList(Type.DECIMALV2, Type.DECIMALV2),
-                Type.DECIMALV2, Function.NullableMode.ALWAYS_NULLABLE));
+                Type.DECIMALV2, Function.NullableMode.DEPEND_ON_ARGUMENT));
+
+        functionSet.addBuiltin(ScalarFunction.createVecBuiltinOperator(
+                Operator.MOD.getName(),
+                Lists.<Type>newArrayList(Type.DOUBLE, Type.DOUBLE),
+                Type.DOUBLE, Function.NullableMode.DEPEND_ON_ARGUMENT));
+        functionSet.addBuiltin(ScalarFunction.createVecBuiltinOperator(
+                Operator.MOD.getName(),
+                Lists.<Type>newArrayList(Type.DECIMALV2, Type.DECIMALV2),
+                Type.DECIMALV2, Function.NullableMode.DEPEND_ON_ARGUMENT));
 
         for (int i = 0; i < Type.getIntegerTypes().size(); i++) {
             Type t1 = Type.getIntegerTypes().get(i);
@@ -155,7 +164,11 @@ public class ArithmeticExpr extends Expr {
                 functionSet.addBuiltin(ScalarFunction.createVecBuiltinOperator(
                         Operator.INT_DIVIDE.getName(), Lists.newArrayList(t1, t2),
                         Type.getAssignmentCompatibleType(t1, t2, false),
-                        Function.NullableMode.ALWAYS_NULLABLE));
+                        Function.NullableMode.DEPEND_ON_ARGUMENT));
+                functionSet.addBuiltin(ScalarFunction.createVecBuiltinOperator(
+                        Operator.MOD.getName(), Lists.newArrayList(t1, t2),
+                        Type.getAssignmentCompatibleType(t1, t2, false),
+                        Function.NullableMode.DEPEND_ON_ARGUMENT));
             }
         }
     }
@@ -268,6 +281,7 @@ public class ArithmeticExpr extends Expr {
                 case SUBTRACT:
                 case MOD:
                 case INT_DIVIDE:
+                    if (t1.isDecimalV2() || t2.isDecimalV2()) castBinaryOp(findCommonType(t1, t2));
                     fn = getBuiltinFunction(analyzer, op.name, collectChildReturnTypes(),
                             Function.CompareMode.IS_IDENTICAL);
                     break;

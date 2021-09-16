@@ -33,6 +33,8 @@
 #include "util/runtime_profile.h"
 #include "util/uid_util.h" // for print_id
 
+#include "vec/exprs/vexpr_context.h"
+
 namespace doris {
 class Expr;
 class ExprContext;
@@ -274,6 +276,8 @@ protected:
     std::vector<Expr*> _conjuncts;
     std::vector<ExprContext*> _conjunct_ctxs;
     std::vector<TupleId> _tuple_ids;
+
+    std::unique_ptr<doris::vectorized::VExprContext*> _vconjunct_ctx_ptr;
 
     std::vector<ExecNode*> _children;
     RowDescriptor _row_descriptor;

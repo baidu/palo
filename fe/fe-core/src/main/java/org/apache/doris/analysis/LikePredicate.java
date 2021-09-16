@@ -125,6 +125,11 @@ public class LikePredicate extends Predicate {
 
         fn = getBuiltinFunction(analyzer, op.toString(),
                 collectChildReturnTypes(), Function.CompareMode.IS_NONSTRICT_SUPERTYPE_OF);
+
+        if (fn == null) {
+            throw new AnalysisException("fn 'like' no supported");
+        }
+
         if (!getChild(1).getType().isNull() && getChild(1).isLiteral() && (op == Operator.REGEXP)) {
             // let's make sure the pattern works
             // TODO: this checks that it's a Java-supported regex, but the syntax supported
