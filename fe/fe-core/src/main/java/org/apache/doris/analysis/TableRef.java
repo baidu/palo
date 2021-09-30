@@ -455,6 +455,7 @@ public class TableRef implements ParseNode, Writable {
             analyzer.registerFullOuterJoinedTids(leftTblRef.getAllTableRefIds(), this);
             analyzer.registerFullOuterJoinedTids(getId().asList(), this);
         }
+
         // register the tuple id of the rhs of a left semi join
         TupleId semiJoinedTupleId = null;
         if (joinOp == JoinOperator.LEFT_SEMI_JOIN
