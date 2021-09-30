@@ -802,6 +802,7 @@ public class Analyzer {
 
     /**
      * Register tids as being outer-joined by Join clause represented by rhsRef.
+     * All tuple of outer join should be null in slot desc
      */
     public void registerOuterJoinedTids(List<TupleId> tids, TableRef rhsRef) {
         for (TupleId tid: tids) {
@@ -810,6 +811,17 @@ public class Analyzer {
         if (LOG.isDebugEnabled()) {
             LOG.debug("registerOuterJoinedTids: " +
                     globalState.outerJoinedTupleIds.toString());
+        }
+    }
+
+    /**
+     * All tuple of outer join tuple should be null in slot desc
+     */
+    public void changeAllOuterJoinTupleToNull() {
+        for (TupleId tid : globalState.outerJoinedTupleIds.keySet()) {
+            for (SlotDescriptor slotDescriptor : getTupleDesc(tid).getSlots()) {
+                slotDescriptor.setIsNullable(true);
+            }
         }
     }
 
