@@ -49,11 +49,11 @@ Status VOlapScanner::get_block(RuntimeState* state, vectorized::Block* block, bo
 
     auto column_size = get_query_slots().size();
     std::vector<vectorized::MutableColumnPtr> columns(column_size);
-    bool mem_reuse = block->mem_reuse();
     // only empty block should be here
     DCHECK(block->rows() == 0);
 
     do {
+        bool mem_reuse = block->mem_reuse();
         for (auto i = 0; i < column_size; i++) {
             if (mem_reuse) {
                 columns[i] = std::move(*block->get_by_position(i).column).mutate();
