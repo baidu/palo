@@ -29,7 +29,7 @@
 
 namespace doris::vectorized {
 
-inline bool allowDecimalComparison(const DataTypePtr& left_type, const DataTypePtr& right_type) {
+inline bool allow_decimal_comparison(const DataTypePtr& left_type, const DataTypePtr& right_type) {
     if (is_decimal(left_type)) {
         if (is_decimal(right_type) || is_not_decimal_but_comparable_to_decimal(right_type))
             return true;
@@ -86,7 +86,7 @@ public:
             ColumnPtr c_res;
             Shift shift = getScales<A, B>(col_left.type, col_right.type);
 
-            c_res = applyWithScale(col_left.column, col_right.column, shift);
+            c_res = apply_with_scale(col_left.column, col_right.column, shift);
             if (c_res) {
                 block.replace_by_position(result, std::move(c_res));
             }
@@ -109,7 +109,7 @@ public:
             shift.b = DataTypeDecimal<A>(max_decimal_precision<A>(), scale_a)
                               .get_scale_multiplier(scale_a - scale_b);
 
-        return applyWithScale(a, b, shift);
+        return apply_with_scale(a, b, shift);
     }
 
 private:
@@ -123,7 +123,7 @@ private:
     };
 
     template <typename T, typename U>
-    static auto applyWithScale(T a, U b, const Shift& shift) {
+    static auto apply_with_scale(T a, U b, const Shift& shift) {
         if (shift.left())
             return apply<true, false>(a, b, shift.a);
         else if (shift.right())

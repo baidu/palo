@@ -20,6 +20,9 @@
 #include <cmath>
 #include <limits>
 
+#include "runtime/datetime_value.h"
+#include "util/binary_cast.hpp"
+
 #include "vec/common/nan_utils.h"
 #include "vec/common/uint128.h"
 #include "vec/core/types.h"
@@ -477,14 +480,27 @@ template <typename A, typename B>
 struct EqualsOp {
     /// An operation that gives the same result, if arguments are passed in reverse order.
     using SymmetricOp = EqualsOp<B, A>;
-
     static UInt8 apply(A a, B b) { return accurate::equalsOp(a, b); }
+};
+
+template <>
+struct EqualsOp<DateTimeValue, DateTimeValue> {
+    static UInt8 apply(const Int128& a, const Int128& b) {
+        return a == b;
+    }
 };
 
 template <typename A, typename B>
 struct NotEqualsOp {
     using SymmetricOp = NotEqualsOp<B, A>;
     static UInt8 apply(A a, B b) { return accurate::notEqualsOp(a, b); }
+};
+
+template <>
+struct NotEqualsOp<DateTimeValue, DateTimeValue> {
+    static UInt8 apply(const Int128& a, const Int128& b) {
+        return a != b;
+    }
 };
 
 template <typename A, typename B>
@@ -496,10 +512,24 @@ struct LessOp {
     static UInt8 apply(A a, B b) { return accurate::lessOp(a, b); }
 };
 
+template <>
+struct LessOp<DateTimeValue, DateTimeValue> {
+    static UInt8 apply(Int128 a, Int128 b) {
+        return binary_cast<Int128, DateTimeValue>(a) < binary_cast<Int128, DateTimeValue>(b);
+    }
+};
+
 template <typename A, typename B>
 struct GreaterOp {
     using SymmetricOp = LessOp<B, A>;
     static UInt8 apply(A a, B b) { return accurate::greaterOp(a, b); }
+};
+
+template <>
+struct GreaterOp<DateTimeValue, DateTimeValue> {
+    static UInt8 apply(Int128 a, Int128 b) {
+        return binary_cast<Int128, DateTimeValue>(a) > binary_cast<Int128, DateTimeValue>(b);
+    }
 };
 
 template <typename A, typename B>
@@ -511,10 +541,24 @@ struct LessOrEqualsOp {
     static UInt8 apply(A a, B b) { return accurate::lessOrEqualsOp(a, b); }
 };
 
+template <>
+struct LessOrEqualsOp<DateTimeValue, DateTimeValue> {
+    static UInt8 apply(Int128 a, Int128 b) {
+        return binary_cast<Int128, DateTimeValue>(a) <= binary_cast<Int128, DateTimeValue>(b);
+    }
+};
+
 template <typename A, typename B>
 struct GreaterOrEqualsOp {
     using SymmetricOp = LessOrEqualsOp<B, A>;
     static UInt8 apply(A a, B b) { return accurate::greaterOrEqualsOp(a, b); }
+};
+
+template <>
+struct GreaterOrEqualsOp<DateTimeValue, DateTimeValue> {
+    static UInt8 apply(Int128 a, Int128 b) {
+        return binary_cast<Int128, DateTimeValue>(a) >= binary_cast<Int128, DateTimeValue>(b);
+    }
 };
 
 } // namespace doris::vectorized
