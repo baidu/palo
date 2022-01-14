@@ -522,6 +522,9 @@ set(COMMON_THIRDPARTY
     cctz
     minzip
     ${AWS_LIBS}
+    # put this after lz4 to avoid using lz4 lib in librdkafka
+    librdkafka_cpp
+    librdkafka
 )
 
 if (${MAKE_TEST} STREQUAL "ON")
