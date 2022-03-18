@@ -91,6 +91,7 @@ Status NodeChannel::init(RuntimeState* state) {
 
     _rpc_timeout_ms = state->query_options().query_timeout * 1000;
     _timeout_watch.start();
+    _max_pending_batches_bytes = _parent->_load_mem_limit / 20; //TODO: session variable percent
 
     _load_info = "load_id=" + print_id(_parent->_load_id) +
                  ", txn_id=" + std::to_string(_parent->_txn_id);
@@ -210,7 +211,7 @@ Status NodeChannel::add_row(Tuple* input_tuple, int64_t tablet_id) {
     // But there is still some unfinished things, we do mem limit here temporarily.
     // _cancelled may be set by rpc callback, and it's possible that _cancelled might be set in any of the steps below.
     // It's fine to do a fake add_row() and return OK, because we will check _cancelled in next add_row() or mark_close().
-    while (!_cancelled && _parent->_mem_tracker->AnyLimitExceeded(MemLimit::HARD) &&
+    while (!_cancelled && (_pending_batches_bytes > _max_pending_batches_bytes || _parent->_mem_tracker->AnyLimitExceeded(MemLimit::HARD)) &&
            _pending_batches_num > 0) {
         SCOPED_ATOMIC_TIMER(&_mem_exceeded_block_ns);
         SleepFor(MonoDelta::FromMilliseconds(10));
@@ -221,6 +222,7 @@ Status NodeChannel::add_row(Tuple* input_tuple, int64_t tablet_id) {
         {
             SCOPED_ATOMIC_TIMER(&_queue_push_lock_ns);
             std::lock_guard<std::mutex> l(_pending_batches_lock);
+            _pending_batches_bytes += _cur_batch->tuple_data_pool()->total_reserved_bytes();
             //To simplify the add_row logic, postpone adding batch into req until the time of sending req
             _pending_batches.emplace(std::move(_cur_batch), _cur_add_batch_request);
             _pending_batches_num++;
@@ -255,6 +257,7 @@ Status NodeChannel::mark_close() {
     {
         debug::ScopedTSANIgnoreReadsAndWrites ignore_tsan;
         std::lock_guard<std::mutex> l(_pending_batches_lock);
+        _pending_batches_bytes += _cur_batch->tuple_data_pool()->total_reserved_bytes();
         _pending_batches.emplace(std::move(_cur_batch), _cur_add_batch_request);
         _pending_batches_num++;
         DCHECK(_pending_batches.back().second.eos());
@@ -360,6 +363,7 @@ void NodeChannel::try_send_batch() {
         send_batch = std::move(_pending_batches.front());
         _pending_batches.pop();
         _pending_batches_num--;
+        _pending_batches_bytes -= send_batch.first->tuple_data_pool()->total_reserved_bytes();
     }
 
     auto row_batch = std::move(send_batch.first);
